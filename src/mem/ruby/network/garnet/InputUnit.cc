@@ -90,17 +90,22 @@ InputUnit::wakeup()
         if ((t_flit->get_type() == HEAD_) ||
             (t_flit->get_type() == HEAD_TAIL_)) {
 
-            assert(virtualChannels[vc].get_state() == IDLE_);
-            set_vc_active(vc, curTick());
+            bool wormhole =
+                m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+            if (!wormhole || virtualChannels[vc].get_state() == IDLE_) {
+                assert(virtualChannels[vc].get_state() == IDLE_);
+                set_vc_active(vc, curTick());
 
-            // Route computation for this vc
-            int outport = m_router->route_compute(t_flit->get_route(),
-                m_id, m_direction);
+                // Route computation for this vc
+                int outport = m_router->route_compute(t_flit->get_route(),
+                    m_id, m_direction);
 
-            // Update output port in VC
-            // All flits in this packet will use this output port
-            // The output port field in the flit is updated after it wins SA
-            grant_outport(vc, outport);
+                // Update output port in VC
+                // All flits in this packet will use this output port
+                // The output port field in the flit is updated after it
+                // wins SA
+                grant_outport(vc, outport);
+            }
 
         } else {
             assert(virtualChannels[vc].get_state() == ACTIVE_);

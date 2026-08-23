@@ -465,10 +465,13 @@ NetworkInterface::calculateVC(int vnet)
         if (m_vc_allocator[vnet] == m_vc_per_vnet)
             m_vc_allocator[vnet] = 0;
 
-        if (outVcState[(vnet*m_vc_per_vnet) + delta].isInState(
-                    IDLE_, curTick())) {
+        int vc = (vnet*m_vc_per_vnet) + delta;
+        bool wormhole = m_net_ptr->getBuffersPerCtrlVC() == 16;
+        if (outVcState[vc].isInState(IDLE_, curTick()) ||
+            (wormhole && niOutVcs[vc].getSize() <
+                         outVcState[vc].get_credit_count())) {
             vc_busy_counter[vnet] = 0;
-            return ((vnet*m_vc_per_vnet) + delta);
+            return vc;
         }
     }
 

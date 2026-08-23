@@ -98,8 +98,11 @@ bool
 OutputUnit::has_free_vc(int vnet)
 {
     int vc_base = vnet*m_vc_per_vnet;
+    bool wormhole =
+        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
-        if (is_vc_idle(vc, curTick()))
+        if (is_vc_idle(vc, curTick()) ||
+            (wormhole && outVcState[vc].has_credit()))
             return true;
     }
 
@@ -111,11 +114,15 @@ int
 OutputUnit::select_free_vc(int vnet)
 {
     int vc_base = vnet*m_vc_per_vnet;
+    bool wormhole =
+        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
     for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
         if (is_vc_idle(vc, curTick())) {
             outVcState[vc].setState(ACTIVE_, curTick());
             return vc;
         }
+        if (wormhole && outVcState[vc].has_credit())
+            return vc;
     }
 
     return -1;

@@ -88,6 +88,11 @@ def define_options(parser):
             inside garnet network.""",
     )
     parser.add_argument(
+        "--wormhole",
+        action="store_true",
+        help="allow 16 single-flit packets in each VC",
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -169,6 +174,8 @@ def init_network(options, network, InterfaceClass):
         network.ni_flit_size = options.link_width_bits / 8
         network.routing_algorithm = options.routing_algorithm
         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold
+        if options.wormhole:
+            network.buffers_per_ctrl_vc = 16
 
         # Create Bridges and connect them to the corresponding links
         for intLink in network.int_links:

@@ -267,7 +267,19 @@ RoutingUnit::outportComputeCustom(RouteInfo route,
                                  int inport,
                                  PortDirection inport_dirn)
 {
-    panic("%s placeholder executed", __FUNCTION__);
+    int cur = m_router -> get_id();
+    int to =  route.dest_router;
+    int clockwise_hops = (to - cur + 16) % 16;
+    int counter_clockwise_hops = (cur - to + 16) % 16;
+    PortDirection outport_dirn = "Unknown";
+    if (clockwise_hops <= counter_clockwise_hops) {
+        outport_dirn = "Clockwise";
+    } else {
+        // Choose counter-clockwise route
+        outport_dirn = "CounterClockwise";
+    }
+
+    return m_outports_dirn2idx[outport_dirn];
 }
 
 } // namespace garnet

@@ -121,6 +121,17 @@ SwitchAllocator::arbitrate_inports()
             if (input_unit->need_stage(invc, SA_, curTick())) {
                 // This flit is in SA stage
 
+                bool wormhole =
+                    m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+                if (wormhole) {
+                    flit *t_flit = input_unit->peekTopFlit(invc);
+                    int next_outport = m_router->route_compute(
+                        t_flit->get_route(), inport,
+                        input_unit->get_direction());
+                    input_unit->grant_outport(invc, next_outport);
+                    input_unit->grant_outvc(invc, -1);
+                }
+
                 int outport = input_unit->get_outport(invc);
                 int outvc = input_unit->get_outvc(invc);
 
@@ -224,15 +235,21 @@ SwitchAllocator::arbitrate_outports()
                 if ((t_flit->get_type() == TAIL_) ||
                     t_flit->get_type() == HEAD_TAIL_) {
 
-                    // This Input VC should now be empty
-                    assert(!(input_unit->isReady(invc, curTick())));
+                    bool wormhole =
+                        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+                    if (wormhole) {
+                        input_unit->increment_credit(invc, false, curTick());
+                    } else {
+                        // This Input VC should now be empty
+                        assert(!(input_unit->isReady(invc, curTick())));
 
-                    // Free this VC
-                    input_unit->set_vc_idle(invc, curTick());
+                        // Free this VC
+                        input_unit->set_vc_idle(invc, curTick());
 
-                    // Send a credit back
-                    // along with the information that this VC is now idle
-                    input_unit->increment_credit(invc, true, curTick());
+                        // Send a credit back
+                        // along with the information that this VC is now idle
+                        input_unit->increment_credit(invc, true, curTick());
+                    }
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle
