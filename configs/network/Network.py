@@ -93,6 +93,14 @@ def define_options(parser):
         help="allow 16 single-flit packets in each VC",
     )
     parser.add_argument(
+        "--bubble",
+        action="store_true",
+        help=(
+            "enable bubble flow control for the 16-node Ring; "
+            "local injection requires at least two credits"
+        ),
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -174,7 +182,14 @@ def init_network(options, network, InterfaceClass):
         network.ni_flit_size = options.link_width_bits / 8
         network.routing_algorithm = options.routing_algorithm
         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold
-        if options.wormhole:
+        if options.bubble:
+            if options.topology != "Ring":
+                fatal("--bubble currently requires --topology=Ring")
+            if options.vcs_per_vnet != 1:
+                fatal("--bubble currently requires --vcs-per-vnet=1")
+
+        network.bubble = options.bubble
+        if options.wormhole or options.bubble:
             network.buffers_per_ctrl_vc = 16
 
         # Create Bridges and connect them to the corresponding links

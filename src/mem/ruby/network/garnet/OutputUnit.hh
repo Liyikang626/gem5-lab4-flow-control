@@ -66,9 +66,9 @@ class OutputUnit : public Consumer
     void print(std::ostream& out) const {};
     void decrement_credit(int out_vc);
     void increment_credit(int out_vc);
-    bool has_credit(int out_vc);
-    bool has_free_vc(int vnet);
-    int select_free_vc(int vnet);
+    bool has_credit(int out_vc, int min_credits = 1);
+    bool has_free_vc(int vnet, int min_credits = 1);
+    int select_free_vc(int vnet, int min_credits = 1);
 
     inline PortDirection get_direction() { return m_direction; }
 

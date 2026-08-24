@@ -307,6 +307,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
     int vnet = get_vnet(invc);
     bool has_outvc = (outvc != -1);
     bool has_credit = false;
+    int min_credits = required_credits(inport, outport);
 
     auto output_unit = m_router->getOutputUnit(outport);
     if (!has_outvc) {
@@ -314,7 +315,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         // needs outvc
         // this is only true for HEAD and HEAD_TAIL flits.
 
-        if (output_unit->has_free_vc(vnet)) {
+        if (output_unit->has_free_vc(vnet, min_credits)) {
 
             has_outvc = true;
 
@@ -323,7 +324,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
             has_credit = true;
         }
     } else {
-        has_credit = output_unit->has_credit(outvc);
+        has_credit = output_unit->has_credit(outvc, min_credits);
     }
 
     // cannot send if no outvc or no credit.
@@ -359,13 +360,30 @@ int
 SwitchAllocator::vc_allocate(int outport, int inport, int invc)
 {
     // Select a free VC from the output port
-    int outvc =
-        m_router->getOutputUnit(outport)->select_free_vc(get_vnet(invc));
+    int min_credits = required_credits(inport, outport);
+    int outvc = m_router->getOutputUnit(outport)->select_free_vc(
+        get_vnet(invc), min_credits);
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
     return outvc;
+}
+
+// A locally generated packet consumes a slot in a cyclic Ring channel.
+// Bubble flow control reserves one additional downstream slot so that a
+// bubble always remains in the cycle. Transit traffic still needs one credit.
+int
+SwitchAllocator::required_credits(int inport, int outport)
+{
+    if (!m_router->get_net_ptr()->isBubbleEnabled())
+        return 1;
+
+    auto input_unit = m_router->getInputUnit(inport);
+    auto output_unit = m_router->getOutputUnit(outport);
+    bool enters_ring = input_unit->get_direction() == "Local" &&
+                       output_unit->get_direction() != "Local";
+    return enters_ring ? 2 : 1;
 }
 
 // Wakeup the router next cycle to perform SA again

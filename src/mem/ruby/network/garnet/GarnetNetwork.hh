@@ -79,6 +79,7 @@ class GarnetNetwork : public Network
     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
     uint32_t getBuffersPerDataVC() { return m_buffers_per_data_vc; }
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
+    bool isBubbleEnabled() const { return m_bubble; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
 
     bool isFaultModelEnabled() const { return m_enable_fault_model; }
@@ -165,6 +166,7 @@ class GarnetNetwork : public Network
     uint32_t m_max_vcs_per_vnet;
     uint32_t m_buffers_per_ctrl_vc;
     uint32_t m_buffers_per_data_vc;
+    bool m_bubble;
     int m_routing_algorithm;
     bool m_enable_fault_model;
 
