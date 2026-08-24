@@ -196,17 +196,20 @@ def init_network(options, network, InterfaceClass):
         network.vcs_per_vnet = options.vcs_per_vnet
         network.ni_flit_size = options.link_width_bits / 8
         network.routing_algorithm = options.routing_algorithm
+        network.lab_topology = options.topology
         network.garnet_deadlock_threshold = options.garnet_deadlock_threshold
         if options.bubble:
-            if options.topology != "Ring":
-                fatal("--bubble currently requires --topology=Ring")
+            supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
+            if options.topology not in supported:
+                fatal("--bubble requires Ring, Mesh2D, Mesh_XY, or Torus2D")
 
         if options.vc_depth is not None and options.vc_depth < 1:
             fatal("--vc-depth must be at least one")
 
         if options.escape_vc:
-            if options.topology != "Ring":
-                fatal("--escape-vc currently requires --topology=Ring")
+            supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
+            if options.topology not in supported:
+                fatal("--escape-vc requires Ring, Mesh2D, Mesh_XY, or Torus2D")
             if options.vcs_per_vnet < 2:
                 fatal("--escape-vc requires at least two VCs per vnet")
             if options.vcs_per_vnet % 2 != 0:

@@ -308,7 +308,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
     bool has_outvc = (outvc != -1);
     bool has_credit = false;
     int min_credits = required_credits(inport, outport);
-    int vc_offset = required_vc_offset(invc, outport);
+    int vc_offset = required_vc_offset(inport, invc, outport);
 
     auto output_unit = m_router->getOutputUnit(outport);
     if (!has_outvc) {
@@ -362,51 +362,91 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
 {
     // Select a free VC from the output port
     int min_credits = required_credits(inport, outport);
-    int vc_offset = required_vc_offset(invc, outport);
+    int vc_offset = required_vc_offset(inport, invc, outport);
     int outvc = m_router->getOutputUnit(outport)->select_free_vc(
         get_vnet(invc), min_credits, vc_offset);
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
-    int first_escape_vc_offset = m_vc_per_vnet / 2;
     if (m_router->get_net_ptr()->isEscapeVcEnabled() &&
-        invc % m_vc_per_vnet < first_escape_vc_offset &&
-        vc_offset >= first_escape_vc_offset) {
+        crosses_dateline(outport)) {
         m_router->get_net_ptr()->incrementEscapeVcTransitions();
     }
     return outvc;
 }
 
-// The lower half of the VCs carry traffic before the Ring dateline. A packet
-// switches to its paired VC in the upper (escape) half when it traverses
-// either dateline channel (15->0 or 0->15), and can never return to a regular
-// VC. This removes the cyclic channel dependency.
+// Cyclic dimensions use paired regular/escape VCs. A Ring packet switches
+// once at its dateline. A Torus packet may switch once in X, return to the
+// paired regular VC on the dimension-order X->Y turn, and switch again at
+// the Y dateline. A Mesh needs no dateline restriction.
 int
-SwitchAllocator::required_vc_offset(int invc, int outport)
+SwitchAllocator::required_vc_offset(int inport, int invc, int outport)
 {
     if (!m_router->get_net_ptr()->isEscapeVcEnabled())
+        return -1;
+
+    const std::string& topology =
+        m_router->get_net_ptr()->getLabTopology();
+    if (topology == "Mesh2D" || topology == "Mesh_XY")
         return -1;
 
     assert(m_vc_per_vnet >= 2 && m_vc_per_vnet % 2 == 0);
     int in_vc_offset = invc % m_vc_per_vnet;
     int first_escape_vc_offset = m_vc_per_vnet / 2;
-    if (in_vc_offset >= first_escape_vc_offset)
-        return in_vc_offset;
+    int regular_vc_offset = in_vc_offset % first_escape_vc_offset;
+    PortDirection in_dir =
+        m_router->getInputUnit(inport)->get_direction();
+    PortDirection out_dir =
+        m_router->getOutputUnit(outport)->get_direction();
 
+    if (topology == "Ring") {
+        if (in_vc_offset >= first_escape_vc_offset)
+            return in_vc_offset;
+        return crosses_dateline(outport) ?
+            regular_vc_offset + first_escape_vc_offset : in_vc_offset;
+    }
+
+    assert(topology == "Torus2D");
+    bool input_is_x = in_dir == "East" || in_dir == "West";
+    bool output_is_y = out_dir == "North" || out_dir == "South";
+    bool turns_to_y = input_is_x && output_is_y;
+    int next_vc_offset = turns_to_y ? regular_vc_offset : in_vc_offset;
+
+    return crosses_dateline(outport) ?
+        regular_vc_offset + first_escape_vc_offset : next_vc_offset;
+}
+
+bool
+SwitchAllocator::crosses_dateline(int outport)
+{
+    const std::string& topology =
+        m_router->get_net_ptr()->getLabTopology();
     PortDirection out_dir =
         m_router->getOutputUnit(outport)->get_direction();
     int router_id = m_router->get_id();
-    bool crosses_dateline =
-        (router_id == 15 && out_dir == "Clockwise") ||
-        (router_id == 0 && out_dir == "CounterClockwise");
-    return crosses_dateline ? in_vc_offset + first_escape_vc_offset :
-                              in_vc_offset;
+
+    if (topology == "Ring") {
+        return (router_id == 15 && out_dir == "Clockwise") ||
+               (router_id == 0 && out_dir == "CounterClockwise");
+    }
+    if (topology != "Torus2D")
+        return false;
+
+    int num_rows = m_router->get_net_ptr()->getNumRows();
+    int num_cols = m_router->get_net_ptr()->getNumCols();
+    int x = router_id % num_cols;
+    int y = router_id / num_cols;
+    return (x == num_cols - 1 && out_dir == "East") ||
+           (x == 0 && out_dir == "West") ||
+           (y == num_rows - 1 && out_dir == "North") ||
+           (y == 0 && out_dir == "South");
 }
 
-// A locally generated packet consumes a slot in a cyclic Ring channel.
-// Bubble flow control reserves one additional downstream slot so that a
-// bubble always remains in the cycle. Transit traffic still needs one credit.
+// Injection into a cyclic channel reserves an additional downstream slot.
+// On a Torus, an X->Y turn is also injection into a new cyclic dimension.
+// Straight transit traffic still needs only one credit. Applying the same
+// rule to a Mesh is safe and exposes its injection-overhead cost.
 int
 SwitchAllocator::required_credits(int inport, int outport)
 {
@@ -415,9 +455,19 @@ SwitchAllocator::required_credits(int inport, int outport)
 
     auto input_unit = m_router->getInputUnit(inport);
     auto output_unit = m_router->getOutputUnit(outport);
-    bool enters_ring = input_unit->get_direction() == "Local" &&
-                       output_unit->get_direction() != "Local";
-    return enters_ring ? 2 : 1;
+    PortDirection in_dir = input_unit->get_direction();
+    PortDirection out_dir = output_unit->get_direction();
+    if (out_dir == "Local")
+        return 1;
+
+    bool straight_transit =
+        (out_dir == "Clockwise" && in_dir == "CounterClockwise") ||
+        (out_dir == "CounterClockwise" && in_dir == "Clockwise") ||
+        (out_dir == "East" && in_dir == "West") ||
+        (out_dir == "West" && in_dir == "East") ||
+        (out_dir == "North" && in_dir == "South") ||
+        (out_dir == "South" && in_dir == "North");
+    return straight_transit ? 1 : 2;
 }
 
 // Wakeup the router next cycle to perform SA again

@@ -66,7 +66,8 @@ class SwitchAllocator : public Consumer
     bool send_allowed(int inport, int invc, int outport, int outvc);
     int vc_allocate(int outport, int inport, int invc);
     int required_credits(int inport, int outport);
-    int required_vc_offset(int invc, int outport);
+    int required_vc_offset(int inport, int invc, int outport);
+    bool crosses_dateline(int outport);
 
     inline double
     get_input_arbiter_activity()

@@ -267,6 +267,35 @@ RoutingUnit::outportComputeCustom(RouteInfo route,
                                  int inport,
                                  PortDirection inport_dirn)
 {
+    const std::string& topology =
+        m_router->get_net_ptr()->getLabTopology();
+    if (topology == "Mesh2D" || topology == "Mesh_XY")
+        return outportComputeXY(route, inport, inport_dirn);
+
+    if (topology == "Torus2D") {
+        int num_rows = m_router->get_net_ptr()->getNumRows();
+        int num_cols = m_router->get_net_ptr()->getNumCols();
+        int cur = m_router->get_id();
+        int dest = route.dest_router;
+        int cur_x = cur % num_cols;
+        int cur_y = cur / num_cols;
+        int dest_x = dest % num_cols;
+        int dest_y = dest / num_cols;
+        PortDirection outport_dirn = "Unknown";
+
+        if (cur_x != dest_x) {
+            int east_hops = (dest_x - cur_x + num_cols) % num_cols;
+            int west_hops = (cur_x - dest_x + num_cols) % num_cols;
+            outport_dirn = east_hops <= west_hops ? "East" : "West";
+        } else {
+            int north_hops = (dest_y - cur_y + num_rows) % num_rows;
+            int south_hops = (cur_y - dest_y + num_rows) % num_rows;
+            outport_dirn = north_hops <= south_hops ? "North" : "South";
+        }
+
+        return m_outports_dirn2idx[outport_dirn];
+    }
+
     int cur = m_router -> get_id();
     int to =  route.dest_router;
     int clockwise_hops = (to - cur + 16) % 16;

@@ -82,6 +82,7 @@ class GarnetNetwork : public Network
     bool isWormholeEnabled() const { return m_wormhole; }
     bool isBubbleEnabled() const { return m_bubble; }
     bool isEscapeVcEnabled() const { return m_escape_vc; }
+    const std::string& getLabTopology() const { return m_lab_topology; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
 
     bool isFaultModelEnabled() const { return m_enable_fault_model; }
@@ -172,6 +173,7 @@ class GarnetNetwork : public Network
     bool m_wormhole;
     bool m_bubble;
     bool m_escape_vc;
+    std::string m_lab_topology;
     int m_routing_algorithm;
     bool m_enable_fault_model;
 

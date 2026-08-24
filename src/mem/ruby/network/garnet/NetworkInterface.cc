@@ -460,9 +460,13 @@ int
 NetworkInterface::calculateVC(int vnet)
 {
     bool escape_vc = m_net_ptr->isEscapeVcEnabled();
-    // The upper half of the VCs are reserved for packets that cross the
-    // Ring dateline. New packets are injected only into the regular half.
-    int candidate_vcs = escape_vc ? m_vc_per_vnet / 2 : m_vc_per_vnet;
+    const std::string& topology = m_net_ptr->getLabTopology();
+    bool uses_dateline =
+        escape_vc && (topology == "Ring" || topology == "Torus2D");
+    // Cyclic topologies reserve the upper half for dateline crossings.
+    // A mesh is already acyclic under dimension-order routing, so all VCs
+    // remain available there.
+    int candidate_vcs = uses_dateline ? m_vc_per_vnet / 2 : m_vc_per_vnet;
     for (int i = 0; i < candidate_vcs; i++) {
         int delta = m_vc_allocator[vnet];
         m_vc_allocator[vnet]++;
