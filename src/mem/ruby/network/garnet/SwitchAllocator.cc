@@ -369,25 +369,30 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
+    int first_escape_vc_offset = m_vc_per_vnet / 2;
     if (m_router->get_net_ptr()->isEscapeVcEnabled() &&
-        invc % m_vc_per_vnet == 0 && vc_offset == 1) {
+        invc % m_vc_per_vnet < first_escape_vc_offset &&
+        vc_offset >= first_escape_vc_offset) {
         m_router->get_net_ptr()->incrementEscapeVcTransitions();
     }
     return outvc;
 }
 
-// VC0 carries traffic before the Ring dateline. A packet switches to escape
-// VC1 when it traverses either dateline channel (15->0 or 0->15), and can
-// never return to VC0. This removes the cyclic channel dependency.
+// The lower half of the VCs carry traffic before the Ring dateline. A packet
+// switches to its paired VC in the upper (escape) half when it traverses
+// either dateline channel (15->0 or 0->15), and can never return to a regular
+// VC. This removes the cyclic channel dependency.
 int
 SwitchAllocator::required_vc_offset(int invc, int outport)
 {
     if (!m_router->get_net_ptr()->isEscapeVcEnabled())
         return -1;
 
-    assert(m_vc_per_vnet == 2);
-    if (invc % m_vc_per_vnet == 1)
-        return 1;
+    assert(m_vc_per_vnet >= 2 && m_vc_per_vnet % 2 == 0);
+    int in_vc_offset = invc % m_vc_per_vnet;
+    int first_escape_vc_offset = m_vc_per_vnet / 2;
+    if (in_vc_offset >= first_escape_vc_offset)
+        return in_vc_offset;
 
     PortDirection out_dir =
         m_router->getOutputUnit(outport)->get_direction();
@@ -395,7 +400,8 @@ SwitchAllocator::required_vc_offset(int invc, int outport)
     bool crosses_dateline =
         (router_id == 15 && out_dir == "Clockwise") ||
         (router_id == 0 && out_dir == "CounterClockwise");
-    return crosses_dateline ? 1 : 0;
+    return crosses_dateline ? in_vc_offset + first_escape_vc_offset :
+                              in_vc_offset;
 }
 
 // A locally generated packet consumes a slot in a cyclic Ring channel.

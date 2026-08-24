@@ -460,14 +460,14 @@ int
 NetworkInterface::calculateVC(int vnet)
 {
     bool escape_vc = m_net_ptr->isEscapeVcEnabled();
-    int candidate_vcs = escape_vc ? 1 : m_vc_per_vnet;
+    // The upper half of the VCs are reserved for packets that cross the
+    // Ring dateline. New packets are injected only into the regular half.
+    int candidate_vcs = escape_vc ? m_vc_per_vnet / 2 : m_vc_per_vnet;
     for (int i = 0; i < candidate_vcs; i++) {
-        int delta = escape_vc ? 0 : m_vc_allocator[vnet];
-        if (!escape_vc) {
-            m_vc_allocator[vnet]++;
-            if (m_vc_allocator[vnet] == m_vc_per_vnet)
-                m_vc_allocator[vnet] = 0;
-        }
+        int delta = m_vc_allocator[vnet];
+        m_vc_allocator[vnet]++;
+        if (m_vc_allocator[vnet] == candidate_vcs)
+            m_vc_allocator[vnet] = 0;
 
         int vc = (vnet*m_vc_per_vnet) + delta;
         bool wormhole = m_net_ptr->getBuffersPerCtrlVC() == 16;
