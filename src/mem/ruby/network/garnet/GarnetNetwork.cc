@@ -69,6 +69,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_max_vcs_per_vnet = 0;
     m_buffers_per_data_vc = p.buffers_per_data_vc;
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
+    m_wormhole = p.wormhole;
     m_bubble = p.bubble;
     m_escape_vc = p.escape_vc;
     m_routing_algorithm = p.routing_algorithm;

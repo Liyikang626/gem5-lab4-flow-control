@@ -122,7 +122,7 @@ SwitchAllocator::arbitrate_inports()
                 // This flit is in SA stage
 
                 bool wormhole =
-                    m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+                    m_router->get_net_ptr()->isWormholeEnabled();
                 if (wormhole) {
                     flit *t_flit = input_unit->peekTopFlit(invc);
                     int next_outport = m_router->route_compute(
@@ -236,7 +236,7 @@ SwitchAllocator::arbitrate_outports()
                     t_flit->get_type() == HEAD_TAIL_) {
 
                     bool wormhole =
-                        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+                        m_router->get_net_ptr()->isWormholeEnabled();
                     if (wormhole) {
                         input_unit->increment_credit(invc, false, curTick());
                     } else {

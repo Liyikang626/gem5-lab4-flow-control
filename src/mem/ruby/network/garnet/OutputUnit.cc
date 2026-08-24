@@ -105,8 +105,7 @@ OutputUnit::has_free_vc(int vnet, int min_credits, int vc_offset)
         vc_begin += vc_offset;
         vc_end = vc_begin + 1;
     }
-    bool wormhole =
-        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+    bool wormhole = m_router->get_net_ptr()->isWormholeEnabled();
     for (int vc = vc_begin; vc < vc_end; vc++) {
         bool vc_available = is_vc_idle(vc, curTick()) || wormhole;
         if (vc_available &&
@@ -129,8 +128,7 @@ OutputUnit::select_free_vc(int vnet, int min_credits, int vc_offset)
         vc_begin += vc_offset;
         vc_end = vc_begin + 1;
     }
-    bool wormhole =
-        m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
+    bool wormhole = m_router->get_net_ptr()->isWormholeEnabled();
     for (int vc = vc_begin; vc < vc_end; vc++) {
         int credits = outVcState[vc].get_credit_count();
         if (is_vc_idle(vc, curTick()) && credits >= min_credits) {

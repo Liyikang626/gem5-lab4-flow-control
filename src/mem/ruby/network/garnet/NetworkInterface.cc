@@ -470,7 +470,7 @@ NetworkInterface::calculateVC(int vnet)
             m_vc_allocator[vnet] = 0;
 
         int vc = (vnet*m_vc_per_vnet) + delta;
-        bool wormhole = m_net_ptr->getBuffersPerCtrlVC() == 16;
+        bool wormhole = m_net_ptr->isWormholeEnabled();
         if (outVcState[vc].isInState(IDLE_, curTick()) ||
             (wormhole && niOutVcs[vc].getSize() <
                          outVcState[vc].get_credit_count())) {

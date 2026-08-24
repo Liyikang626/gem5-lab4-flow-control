@@ -86,12 +86,11 @@ InputUnit::wakeup()
         assert(t_flit->m_width == m_router->getBitWidth());
         int vc = t_flit->get_vc();
         t_flit->increment_hops(); // for stats
+        bool wormhole = m_router->get_net_ptr()->isWormholeEnabled();
 
         if ((t_flit->get_type() == HEAD_) ||
             (t_flit->get_type() == HEAD_TAIL_)) {
 
-            bool wormhole =
-                m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
             if (!wormhole || virtualChannels[vc].get_state() == IDLE_) {
                 assert(virtualChannels[vc].get_state() == IDLE_);
                 set_vc_active(vc, curTick());
@@ -107,6 +106,15 @@ InputUnit::wakeup()
                 grant_outport(vc, outport);
             }
 
+        } else if (wormhole &&
+                   virtualChannels[vc].get_state() == IDLE_) {
+            // Shared-buffer flow control may allocate each flit to a
+            // different downstream VC. Activate an idle VC when a body or
+            // tail flit is the first flit to use it; SA recomputes its route.
+            set_vc_active(vc, curTick());
+            int outport = m_router->route_compute(t_flit->get_route(),
+                m_id, m_direction);
+            grant_outport(vc, outport);
         } else {
             assert(virtualChannels[vc].get_state() == ACTIVE_);
         }

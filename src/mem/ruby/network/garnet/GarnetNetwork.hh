@@ -79,6 +79,7 @@ class GarnetNetwork : public Network
     uint32_t getNiFlitSize() const { return m_ni_flit_size; }
     uint32_t getBuffersPerDataVC() { return m_buffers_per_data_vc; }
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
+    bool isWormholeEnabled() const { return m_wormhole; }
     bool isBubbleEnabled() const { return m_bubble; }
     bool isEscapeVcEnabled() const { return m_escape_vc; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
@@ -168,6 +169,7 @@ class GarnetNetwork : public Network
     uint32_t m_max_vcs_per_vnet;
     uint32_t m_buffers_per_ctrl_vc;
     uint32_t m_buffers_per_data_vc;
+    bool m_wormhole;
     bool m_bubble;
     bool m_escape_vc;
     int m_routing_algorithm;

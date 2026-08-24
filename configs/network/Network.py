@@ -88,9 +88,16 @@ def define_options(parser):
             inside garnet network.""",
     )
     parser.add_argument(
+        "--vc-depth",
+        action="store",
+        type=int,
+        default=None,
+        help="buffer entries per VC for Wormhole, Bubble, or Escape VC",
+    )
+    parser.add_argument(
         "--wormhole",
         action="store_true",
-        help="use 16-flit-deep VCs for wormhole flow control",
+        help="enable shared-buffer wormhole flow control",
     )
     parser.add_argument(
         "--bubble",
@@ -193,8 +200,9 @@ def init_network(options, network, InterfaceClass):
         if options.bubble:
             if options.topology != "Ring":
                 fatal("--bubble currently requires --topology=Ring")
-            if options.vcs_per_vnet != 1:
-                fatal("--bubble currently requires --vcs-per-vnet=1")
+
+        if options.vc_depth is not None and options.vc_depth < 1:
+            fatal("--vc-depth must be at least one")
 
         if options.escape_vc:
             if options.topology != "Ring":
@@ -210,14 +218,21 @@ def init_network(options, network, InterfaceClass):
 
         network.bubble = options.bubble
         network.escape_vc = options.escape_vc
+        network.wormhole = options.wormhole or options.bubble
         if options.escape_vc:
             # Each regular/escape VC has eight buffer entries. With two VCs,
             # this matches the 16-entry total buffer budget of Bubble.
-            network.buffers_per_ctrl_vc = 8
-            network.buffers_per_data_vc = 8
+            vc_depth = options.vc_depth or 8
         elif options.wormhole or options.bubble:
-            network.buffers_per_ctrl_vc = 16
-            network.buffers_per_data_vc = 16
+            vc_depth = options.vc_depth or 16
+        else:
+            vc_depth = options.vc_depth
+
+        if options.bubble and vc_depth < 2:
+            fatal("Bubble flow control requires --vc-depth of at least two")
+        if vc_depth is not None:
+            network.buffers_per_ctrl_vc = vc_depth
+            network.buffers_per_data_vc = vc_depth
 
         # Create Bridges and connect them to the corresponding links
         for intLink in network.int_links:
