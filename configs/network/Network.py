@@ -90,7 +90,7 @@ def define_options(parser):
     parser.add_argument(
         "--wormhole",
         action="store_true",
-        help="allow 16 single-flit packets in each VC",
+        help="use 16-flit-deep VCs for wormhole flow control",
     )
     parser.add_argument(
         "--bubble",
@@ -191,6 +191,7 @@ def init_network(options, network, InterfaceClass):
         network.bubble = options.bubble
         if options.wormhole or options.bubble:
             network.buffers_per_ctrl_vc = 16
+            network.buffers_per_data_vc = 16
 
         # Create Bridges and connect them to the corresponding links
         for intLink in network.int_links:
