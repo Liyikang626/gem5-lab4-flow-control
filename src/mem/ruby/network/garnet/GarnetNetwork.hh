@@ -80,6 +80,7 @@ class GarnetNetwork : public Network
     uint32_t getBuffersPerDataVC() { return m_buffers_per_data_vc; }
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
     bool isBubbleEnabled() const { return m_bubble; }
+    bool isEscapeVcEnabled() const { return m_escape_vc; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
 
     bool isFaultModelEnabled() const { return m_enable_fault_model; }
@@ -157,6 +158,7 @@ class GarnetNetwork : public Network
 
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
+    void incrementEscapeVcTransitions() { m_escape_vc_transitions++; }
 
   protected:
     // Configuration
@@ -167,6 +169,7 @@ class GarnetNetwork : public Network
     uint32_t m_buffers_per_ctrl_vc;
     uint32_t m_buffers_per_data_vc;
     bool m_bubble;
+    bool m_escape_vc;
     int m_routing_algorithm;
     bool m_enable_fault_model;
 
@@ -201,6 +204,7 @@ class GarnetNetwork : public Network
 
     statistics::Scalar  m_total_hops;
     statistics::Formula m_avg_hops;
+    statistics::Scalar m_escape_vc_transitions;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;

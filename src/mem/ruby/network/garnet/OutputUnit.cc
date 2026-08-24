@@ -95,12 +95,19 @@ OutputUnit::has_credit(int out_vc, int min_credits)
 
 // Check if the output port (i.e., input port at next router) has free VCs.
 bool
-OutputUnit::has_free_vc(int vnet, int min_credits)
+OutputUnit::has_free_vc(int vnet, int min_credits, int vc_offset)
 {
     int vc_base = vnet*m_vc_per_vnet;
+    int vc_begin = vc_base;
+    int vc_end = vc_base + m_vc_per_vnet;
+    if (vc_offset >= 0) {
+        assert(vc_offset < m_vc_per_vnet);
+        vc_begin += vc_offset;
+        vc_end = vc_begin + 1;
+    }
     bool wormhole =
         m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
-    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+    for (int vc = vc_begin; vc < vc_end; vc++) {
         bool vc_available = is_vc_idle(vc, curTick()) || wormhole;
         if (vc_available &&
             outVcState[vc].get_credit_count() >= min_credits)
@@ -112,12 +119,19 @@ OutputUnit::has_free_vc(int vnet, int min_credits)
 
 // Assign a free output VC to the winner of Switch Allocation
 int
-OutputUnit::select_free_vc(int vnet, int min_credits)
+OutputUnit::select_free_vc(int vnet, int min_credits, int vc_offset)
 {
     int vc_base = vnet*m_vc_per_vnet;
+    int vc_begin = vc_base;
+    int vc_end = vc_base + m_vc_per_vnet;
+    if (vc_offset >= 0) {
+        assert(vc_offset < m_vc_per_vnet);
+        vc_begin += vc_offset;
+        vc_end = vc_begin + 1;
+    }
     bool wormhole =
         m_router->get_net_ptr()->getBuffersPerCtrlVC() == 16;
-    for (int vc = vc_base; vc < vc_base + m_vc_per_vnet; vc++) {
+    for (int vc = vc_begin; vc < vc_end; vc++) {
         int credits = outVcState[vc].get_credit_count();
         if (is_vc_idle(vc, curTick()) && credits >= min_credits) {
             outVcState[vc].setState(ACTIVE_, curTick());

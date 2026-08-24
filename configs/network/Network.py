@@ -101,6 +101,14 @@ def define_options(parser):
         ),
     )
     parser.add_argument(
+        "--escape-vc",
+        action="store_true",
+        help=(
+            "enable two-VC dateline flow control for the 16-node Ring; "
+            "VC0 is regular and VC1 is the escape VC"
+        ),
+    )
+    parser.add_argument(
         "--routing-algorithm",
         action="store",
         type=int,
@@ -188,8 +196,23 @@ def init_network(options, network, InterfaceClass):
             if options.vcs_per_vnet != 1:
                 fatal("--bubble currently requires --vcs-per-vnet=1")
 
+        if options.escape_vc:
+            if options.topology != "Ring":
+                fatal("--escape-vc currently requires --topology=Ring")
+            if options.vcs_per_vnet != 2:
+                fatal("--escape-vc requires --vcs-per-vnet=2")
+            if options.routing_algorithm != 2:
+                fatal("--escape-vc requires --routing-algorithm=2")
+            if options.bubble or options.wormhole:
+                fatal("--escape-vc cannot be combined with Bubble/Wormhole")
+
         network.bubble = options.bubble
-        if options.wormhole or options.bubble:
+        network.escape_vc = options.escape_vc
+        if options.escape_vc:
+            # Keep the total buffer budget equal to one 16-entry VC.
+            network.buffers_per_ctrl_vc = 8
+            network.buffers_per_data_vc = 8
+        elif options.wormhole or options.bubble:
             network.buffers_per_ctrl_vc = 16
             network.buffers_per_data_vc = 16
 

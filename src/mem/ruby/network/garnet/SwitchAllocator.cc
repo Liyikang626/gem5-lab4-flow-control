@@ -308,6 +308,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
     bool has_outvc = (outvc != -1);
     bool has_credit = false;
     int min_credits = required_credits(inport, outport);
+    int vc_offset = required_vc_offset(invc, outport);
 
     auto output_unit = m_router->getOutputUnit(outport);
     if (!has_outvc) {
@@ -315,7 +316,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         // needs outvc
         // this is only true for HEAD and HEAD_TAIL flits.
 
-        if (output_unit->has_free_vc(vnet, min_credits)) {
+        if (output_unit->has_free_vc(vnet, min_credits, vc_offset)) {
 
             has_outvc = true;
 
@@ -361,13 +362,40 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
 {
     // Select a free VC from the output port
     int min_credits = required_credits(inport, outport);
+    int vc_offset = required_vc_offset(invc, outport);
     int outvc = m_router->getOutputUnit(outport)->select_free_vc(
-        get_vnet(invc), min_credits);
+        get_vnet(invc), min_credits, vc_offset);
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
     m_router->getInputUnit(inport)->grant_outvc(invc, outvc);
+    if (m_router->get_net_ptr()->isEscapeVcEnabled() &&
+        invc % m_vc_per_vnet == 0 && vc_offset == 1) {
+        m_router->get_net_ptr()->incrementEscapeVcTransitions();
+    }
     return outvc;
+}
+
+// VC0 carries traffic before the Ring dateline. A packet switches to escape
+// VC1 when it traverses either dateline channel (15->0 or 0->15), and can
+// never return to VC0. This removes the cyclic channel dependency.
+int
+SwitchAllocator::required_vc_offset(int invc, int outport)
+{
+    if (!m_router->get_net_ptr()->isEscapeVcEnabled())
+        return -1;
+
+    assert(m_vc_per_vnet == 2);
+    if (invc % m_vc_per_vnet == 1)
+        return 1;
+
+    PortDirection out_dir =
+        m_router->getOutputUnit(outport)->get_direction();
+    int router_id = m_router->get_id();
+    bool crosses_dateline =
+        (router_id == 15 && out_dir == "Clockwise") ||
+        (router_id == 0 && out_dir == "CounterClockwise");
+    return crosses_dateline ? 1 : 0;
 }
 
 // A locally generated packet consumes a slot in a cyclic Ring channel.

@@ -459,11 +459,15 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
 int
 NetworkInterface::calculateVC(int vnet)
 {
-    for (int i = 0; i < m_vc_per_vnet; i++) {
-        int delta = m_vc_allocator[vnet];
-        m_vc_allocator[vnet]++;
-        if (m_vc_allocator[vnet] == m_vc_per_vnet)
-            m_vc_allocator[vnet] = 0;
+    bool escape_vc = m_net_ptr->isEscapeVcEnabled();
+    int candidate_vcs = escape_vc ? 1 : m_vc_per_vnet;
+    for (int i = 0; i < candidate_vcs; i++) {
+        int delta = escape_vc ? 0 : m_vc_allocator[vnet];
+        if (!escape_vc) {
+            m_vc_allocator[vnet]++;
+            if (m_vc_allocator[vnet] == m_vc_per_vnet)
+                m_vc_allocator[vnet] = 0;
+        }
 
         int vc = (vnet*m_vc_per_vnet) + delta;
         bool wormhole = m_net_ptr->getBuffersPerCtrlVC() == 16;

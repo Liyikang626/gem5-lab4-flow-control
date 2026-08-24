@@ -70,6 +70,7 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_buffers_per_data_vc = p.buffers_per_data_vc;
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
     m_bubble = p.bubble;
+    m_escape_vc = p.escape_vc;
     m_routing_algorithm = p.routing_algorithm;
     m_next_packet_id = 0;
 
@@ -540,6 +541,10 @@ GarnetNetwork::regStats()
         .name(name() + ".average_hops")
         .unit(Ratio::get());
     m_avg_hops = m_total_hops / sum(m_flits_received);
+
+    m_escape_vc_transitions
+        .name(name() + ".escape_vc_transitions")
+        .unit(Count::get());
 
     // Links
     m_total_ext_in_link_utilization
