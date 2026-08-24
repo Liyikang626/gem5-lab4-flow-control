@@ -1,3 +1,11 @@
+# Lab 4 project
+
+本仓库包含 16 节点 Ring、4×4 Mesh2D、4×4 Torus2D，以及 Wormhole、
+Bubble、Escape VC 三种流量控制方法。中文实现说明、实验结果和复现命令见
+[LAB4_FLOW_CONTROL_REPORT.md](LAB4_FLOW_CONTROL_REPORT.md)。
+
+---
+
 This is the gem5 simulator.
 
 The main website can be found at http://www.gem5.org
