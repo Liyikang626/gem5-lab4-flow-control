@@ -66,8 +66,6 @@ SwitchAllocator::init()
     m_round_robin_invc.resize(m_num_inports);
     m_port_requests.resize(m_num_inports);
     m_vc_winners.resize(m_num_inports);
-    m_shared_reservations.resize(m_num_inports, false);
-    m_shared_vnets.resize(m_num_inports, -1);
     m_elastic_reservations.resize(m_num_inports, false);
     m_elastic_vnets.resize(m_num_inports, -1);
 
@@ -75,8 +73,6 @@ SwitchAllocator::init()
         m_round_robin_invc[i] = 0;
         m_port_requests[i] = -1;
         m_vc_winners[i] = -1;
-        m_shared_reservations[i] = false;
-        m_shared_vnets[i] = -1;
         m_elastic_reservations[i] = false;
         m_elastic_vnets[i] = -1;
     }
@@ -121,8 +117,6 @@ SwitchAllocator::arbitrate_inports()
     // Select a VC from each input in a round robin manner
     // Independent arbiter at each input port
     for (int inport = 0; inport < m_num_inports; inport++) {
-        m_shared_reservations[inport] = false;
-        m_shared_vnets[inport] = -1;
         int invc = m_round_robin_invc[inport];
 
         for (int invc_iter = 0; invc_iter < m_num_vcs; invc_iter++) {
@@ -231,12 +225,6 @@ SwitchAllocator::arbitrate_outports()
                 int invc = m_vc_winners[inport];
 
                 auto network = m_router->get_net_ptr();
-                if (m_shared_reservations[inport]) {
-                    network->commitSharedBubble(
-                        m_router->get_id(), output_unit->get_direction(),
-                        m_shared_vnets[inport]);
-                    m_shared_reservations[inport] = false;
-                }
                 if (m_elastic_reservations[inport]) {
                     network->commitElasticEntry(
                         m_router->get_id(), output_unit->get_direction(),
@@ -280,10 +268,7 @@ SwitchAllocator::arbitrate_outports()
 
                 // Return the marker carried by the freed input slot, then
                 // carry the marker consumed from the next output VC.
-                bool critical = output_unit->decrement_credit(outvc);
-                bool input_critical = t_flit->is_critical();
-                if (output_unit->get_direction() != "Local")
-                    t_flit->set_critical(critical);
+                output_unit->decrement_credit(outvc);
 
                 // flit ready for Switch Traversal
                 t_flit->advance_stage(ST_, curTick());
@@ -297,7 +282,7 @@ SwitchAllocator::arbitrate_outports()
                         m_router->get_net_ptr()->isWormholeEnabled();
                     if (wormhole) {
                         input_unit->increment_credit(
-                            invc, false, curTick(), input_critical);
+                            invc, false, curTick());
                     } else {
                         // This Input VC should now be empty
                         assert(!(input_unit->isReady(invc, curTick())));
@@ -308,18 +293,15 @@ SwitchAllocator::arbitrate_outports()
                         // Send a credit back
                         // along with the information that this VC is now idle
                         input_unit->increment_credit(
-                            invc, true, curTick(), input_critical);
+                            invc, true, curTick());
                     }
                 } else {
                     // Send a credit back
                     // but do not indicate that the VC is idle
                     input_unit->increment_credit(
-                        invc, false, curTick(), input_critical);
+                        invc, false, curTick());
                 }
 
-                if (critical) {
-                    m_router->get_net_ptr()->incrementBalancedBubbleMoves();
-                }
 
                 // remove this request
                 m_port_requests[inport] = -1;
@@ -375,31 +357,21 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
     int min_credits = required_credits(inport, outport);
     int vc_offset = required_vc_offset(inport, invc, outport);
     auto network = m_router->get_net_ptr();
-    bool shared_entry = network->isSharedBubbleEnabled() &&
-                        enters_ring(inport, outport);
     bool elastic_entry = network->isElasticTokenEnabled() &&
                          enters_ring(inport, outport);
     bool ring_token = elastic_entry &&
                       network->getLabTopology() == "Ring";
     if (elastic_entry && !ring_token)
         min_credits = 2;
-    bool protect_critical =
-        m_router->get_net_ptr()->isBalancedBubbleEnabled() &&
-        !m_router->get_net_ptr()->isBubbleEnabled() &&
-        enters_ring(inport, outport);
 
     auto output_unit = m_router->getOutputUnit(outport);
-    if (protect_critical &&
-        m_router->get_net_ptr()->getCriticalCredits(
-            m_router->get_id(), output_unit->get_direction(), vnet) > 1)
-        protect_critical = false;
     if (!has_outvc) {
 
         // needs outvc
         // this is only true for HEAD and HEAD_TAIL flits.
 
         if (output_unit->has_free_vc(
-                vnet, min_credits, vc_offset, protect_critical)) {
+                vnet, min_credits, vc_offset)) {
 
             has_outvc = true;
 
@@ -408,19 +380,11 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
             has_credit = true;
         }
     } else {
-        has_credit = output_unit->has_credit(
-            outvc, min_credits, protect_critical);
+        has_credit = output_unit->has_credit(outvc, min_credits);
     }
 
     // cannot send if no outvc or no credit.
     if (!has_outvc || !has_credit) {
-        if (protect_critical) {
-            bool has_any_credit = has_outvc ?
-                output_unit->has_credit(outvc, min_credits) :
-                output_unit->has_free_vc(vnet, min_credits, vc_offset);
-            if (has_any_credit)
-                m_router->get_net_ptr()->incrementBalancedBubbleBlocks();
-        }
         return false;
     }
 
@@ -445,14 +409,6 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         }
     }
 
-    if (shared_entry) {
-        if (!network->reserveSharedBubble(
-                m_router->get_id(), output_unit->get_direction(), vnet))
-            return false;
-        m_shared_reservations[inport] = true;
-        m_shared_vnets[inport] = vnet;
-    }
-
     if (ring_token) {
         if (!network->reserveElasticEntry(
                 m_router->get_id(), output_unit->get_direction(), vnet))
@@ -472,17 +428,7 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
     int vnet = get_vnet(invc);
     int min_credits = required_credits(inport, outport);
     int vc_offset = required_vc_offset(inport, invc, outport);
-    bool balanced = m_router->get_net_ptr()->isBalancedBubbleEnabled();
-    bool protect_critical = balanced &&
-                            !m_router->get_net_ptr()->isBubbleEnabled() &&
-                            enters_ring(inport, outport);
-    auto output_unit = m_router->getOutputUnit(outport);
-    if (protect_critical &&
-        m_router->get_net_ptr()->getCriticalCredits(
-            m_router->get_id(), output_unit->get_direction(), vnet) > 1)
-        protect_critical = false;
-    bool balance = balanced &&
-                   !m_router->get_net_ptr()->useBalancedVcFirst();
+    bool balance = false;
     if (balance) {
         int ring_size = 0;
         const std::string& topology =
@@ -501,10 +447,8 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
         }
         balance = ring_size >= m_vc_per_vnet;
     }
-    bool prefer_normal = !m_router->get_net_ptr()->useBalancedVcTotal();
     int outvc = output_unit->select_free_vc(
-        vnet, min_credits, vc_offset, protect_critical, balance,
-        prefer_normal);
+        vnet, min_credits, vc_offset);
 
     // has to get a valid VC since it checked before performing SA
     assert(outvc != -1);
@@ -591,8 +535,7 @@ int
 SwitchAllocator::required_credits(int inport, int outport)
 {
     auto network = m_router->get_net_ptr();
-    if (!network->isBubbleEnabled() &&
-        !network->isBalancedBubbleEnabled())
+    if (!network->isBubbleEnabled())
         return 1;
 
     auto input_unit = m_router->getInputUnit(inport);
@@ -602,8 +545,6 @@ SwitchAllocator::required_credits(int inport, int outport)
     if (out_dir == "Local")
         return 1;
 
-    if (network->isSharedBubbleEnabled())
-        return 1;
 
     bool straight_transit =
         (out_dir == "Clockwise" && in_dir == "CounterClockwise") ||
@@ -615,8 +556,7 @@ SwitchAllocator::required_credits(int inport, int outport)
     return straight_transit ? 1 : 2;
 }
 
-// Injection and an X-to-Y turn enter a new cyclic directional ring. Balanced
-// bubble flow control protects critical credits at these entries.
+// Injection and an X-to-Y turn enter a new cyclic directional ring.
 bool
 SwitchAllocator::enters_ring(int inport, int outport)
 {
@@ -673,15 +613,6 @@ SwitchAllocator::clear_request_vector()
 {
     auto network = m_router->get_net_ptr();
     for (int inport = 0; inport < m_num_inports; inport++) {
-        if (m_shared_reservations[inport]) {
-            int outport = m_port_requests[inport];
-            if (outport >= 0)
-                network->releaseSharedBubble(
-                    m_router->get_id(),
-                    m_router->getOutputUnit(outport)->get_direction(),
-                    m_shared_vnets[inport]);
-            m_shared_reservations[inport] = false;
-        }
         if (m_elastic_reservations[inport]) {
             int outport = m_port_requests[inport];
             if (outport >= 0)
@@ -691,7 +622,6 @@ SwitchAllocator::clear_request_vector()
                     m_elastic_vnets[inport]);
             m_elastic_reservations[inport] = false;
         }
-        m_shared_vnets[inport] = -1;
         m_elastic_vnets[inport] = -1;
     }
     std::fill(m_port_requests.begin(), m_port_requests.end(), -1);

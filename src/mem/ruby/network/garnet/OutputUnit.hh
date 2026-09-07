@@ -64,15 +64,11 @@ class OutputUnit : public Consumer
     void wakeup();
     flitBuffer* getOutQueue();
     void print(std::ostream& out) const {};
-    bool decrement_credit(int out_vc);
-    void increment_credit(int out_vc, bool critical = false);
-    bool has_credit(int out_vc, int min_credits = 1,
-                    bool protect_critical = false);
-    bool has_free_vc(int vnet, int min_credits = 1, int vc_offset = -1,
-                     bool protect_critical = false);
-    int select_free_vc(int vnet, int min_credits = 1, int vc_offset = -1,
-                       bool protect_critical = false, bool balance = false,
-                       bool prefer_normal = true);
+    void decrement_credit(int out_vc);
+    void increment_credit(int out_vc);
+    bool has_credit(int out_vc, int min_credits = 1);
+    bool has_free_vc(int vnet, int min_credits = 1, int vc_offset = -1);
+    int select_free_vc(int vnet, int min_credits = 1, int vc_offset = -1);
 
     inline PortDirection get_direction() { return m_direction; }
 
@@ -80,18 +76,6 @@ class OutputUnit : public Consumer
     get_credit_count(int vc)
     {
         return outVcState[vc].get_credit_count();
-    }
-
-    int
-    get_critical_count(int vc)
-    {
-        return outVcState[vc].get_critical_count();
-    }
-
-    int
-    get_elastic_credits(int vnet)
-    {
-        return m_elastic_credits[vnet];
     }
 
     inline int
@@ -128,11 +112,8 @@ class OutputUnit : public Consumer
     GEM5_CLASS_VAR_USED int m_id;
     PortDirection m_direction;
     int m_vc_per_vnet;
-    bool m_elastic;
     NetworkLink *m_out_link;
     CreditLink *m_credit_link;
-    std::vector<int> m_next_vc;
-    std::vector<int> m_elastic_credits;
 
     // This is for the network link to consume
     flitBuffer outBuffer;

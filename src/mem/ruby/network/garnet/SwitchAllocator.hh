@@ -94,8 +94,6 @@ class SwitchAllocator : public Consumer
     std::vector<int> m_round_robin_inport;
     std::vector<int> m_port_requests;
     std::vector<int> m_vc_winners;
-    std::vector<bool> m_shared_reservations;
-    std::vector<int> m_shared_vnets;
     std::vector<bool> m_elastic_reservations;
     std::vector<int> m_elastic_vnets;
 };

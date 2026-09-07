@@ -108,38 +108,9 @@ def define_options(parser):
         ),
     )
     parser.add_argument(
-        "--balanced-bubble",
-        action="store_true",
-        help="enable balanced critical bubble flow control",
-    )
-    parser.add_argument(
-        "--shared-bubble",
-        action="store_true",
-        help="enable shared-bubble flow control",
-    )
-    parser.add_argument(
         "--elastic-token",
         action="store_true",
         help="enable elastic token flow control",
-    )
-    parser.add_argument(
-        "--critical-bubbles",
-        type=int,
-        default=0,
-        help=(
-            "critical credits per directional ring for balanced bubble; "
-            "zero leaves two normal credits per VC"
-        ),
-    )
-    parser.add_argument(
-        "--balanced-vc-first",
-        action="store_true",
-        help="use first-eligible VC selection for balanced bubble ablation",
-    )
-    parser.add_argument(
-        "--balanced-vc-total",
-        action="store_true",
-        help="rank balanced bubble VCs by total credits for ablation",
     )
     parser.add_argument(
         "--escape-vc",
@@ -237,42 +208,17 @@ def init_network(options, network, InterfaceClass):
             if options.topology not in supported:
                 fatal("--bubble requires Ring, Mesh2D, Mesh_XY, or Torus2D")
 
-        if options.balanced_bubble:
-            supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
-            if options.topology not in supported:
-                fatal(
-                    "--balanced-bubble requires Ring, Mesh2D, Mesh_XY, "
-                    "or Torus2D"
-                )
-
-        if options.shared_bubble:
-            supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
-            if options.topology not in supported:
-                fatal(
-                    "--shared-bubble requires Ring, Mesh2D, Mesh_XY, "
-                    "or Torus2D"
-                )
-            if (options.bubble or options.escape_vc or options.wormhole or
-                    options.balanced_bubble):
-                fatal(
-                    "--shared-bubble cannot be combined with "
-                    "Bubble/Escape VC/Wormhole/Balanced Bubble"
-                )
-
         if options.elastic_token:
             supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
             if options.topology not in supported:
                 fatal(
                     "--elastic-token requires Ring, Mesh2D, Mesh_XY, or Torus2D"
                 )
-            if (options.bubble or options.escape_vc or options.wormhole or
-                    options.balanced_bubble or options.shared_bubble):
+            if (options.bubble or options.escape_vc or options.wormhole):
                 fatal(
                     "--elastic-token cannot be combined with "
-                    "Bubble/Escape VC/Wormhole/Balanced Bubble/Shared Bubble"
+                    "Bubble/Escape VC/Wormhole"
                 )
-        if options.critical_bubbles < 0:
-            fatal("--critical-bubbles cannot be negative")
 
         if options.vc_depth is not None and options.vc_depth < 1:
             fatal("--vc-depth must be at least one")
@@ -291,24 +237,16 @@ def init_network(options, network, InterfaceClass):
                 fatal("--escape-vc cannot be combined with Bubble/Wormhole")
 
         network.bubble = options.bubble
-        network.balanced_bubble = options.balanced_bubble
-        network.shared_bubble = options.shared_bubble
         network.elastic_token = options.elastic_token
-        network.critical_bubbles = options.critical_bubbles
-        network.balanced_vc_first = options.balanced_vc_first
-        network.balanced_vc_total = options.balanced_vc_total
         network.escape_vc = options.escape_vc
         network.wormhole = (
-            options.wormhole or options.bubble or options.balanced_bubble or
-            options.shared_bubble or options.elastic_token
+            options.wormhole or options.bubble or options.elastic_token
         )
         if options.escape_vc:
             # Each regular/escape VC has eight buffer entries. With two VCs,
             # this matches the 16-entry total buffer budget of Bubble.
             vc_depth = options.vc_depth or 8
-        elif (options.wormhole or options.bubble or
-              options.balanced_bubble or options.shared_bubble or
-              options.elastic_token):
+        elif (options.wormhole or options.bubble or options.elastic_token):
             vc_depth = options.vc_depth or 16
         else:
             vc_depth = options.vc_depth

@@ -47,18 +47,7 @@ class GarnetNetwork(RubyNetwork):
     buffers_per_ctrl_vc = Param.UInt32(1, "buffers per ctrl virtual channel")
     wormhole = Param.Bool(False, "enable shared-buffer wormhole flow control")
     bubble = Param.Bool(False, "enable bubble flow control")
-    balanced_bubble = Param.Bool(False, "enable balanced critical bubbles")
-    shared_bubble = Param.Bool(False, "enable shared-bubble flow control")
     elastic_token = Param.Bool(False, "enable elastic token flow control")
-    critical_bubbles = Param.UInt32(
-        0, "critical credits per directional ring; zero leaves two normal credits per VC"
-    )
-    balanced_vc_first = Param.Bool(
-        False, "use first-eligible VC selection for balanced bubble ablation"
-    )
-    balanced_vc_total = Param.Bool(
-        False, "rank balanced bubble VCs by total credits for ablation"
-    )
     escape_vc = Param.Bool(False, "enable dateline escape VC flow control")
     lab_topology = Param.String("", "topology used by Lab 4 flow control")
     routing_algorithm = Param.Int(0, "0: Weight-based Table, 1: XY, 2: Custom")
