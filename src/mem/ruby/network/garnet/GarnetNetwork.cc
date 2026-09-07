@@ -457,7 +457,7 @@ GarnetNetwork::reserveSharedBubble(int router_id, PortDirection direction,
         it = m_shared_ring_free.emplace(
             key, getRingCapacity(ring, vnet)).first;
     int &reserved = m_shared_ring_reserved[key];
-    if (it->second - reserved <= 0)
+    if (it->second - reserved <= 1)
         return false;
     reserved++;
     return true;
