@@ -68,6 +68,7 @@ class SwitchAllocator : public Consumer
     int required_credits(int inport, int outport);
     int required_vc_offset(int inport, int invc, int outport);
     bool crosses_dateline(int outport);
+    bool enters_ring(int inport, int outport);
 
     inline double
     get_input_arbiter_activity()
@@ -93,6 +94,10 @@ class SwitchAllocator : public Consumer
     std::vector<int> m_round_robin_inport;
     std::vector<int> m_port_requests;
     std::vector<int> m_vc_winners;
+    std::vector<bool> m_shared_reservations;
+    std::vector<int> m_shared_vnets;
+    std::vector<bool> m_elastic_reservations;
+    std::vector<int> m_elastic_vnets;
 };
 
 } // namespace garnet

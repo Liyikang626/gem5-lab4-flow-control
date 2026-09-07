@@ -71,6 +71,12 @@ GarnetNetwork::GarnetNetwork(const Params &p)
     m_buffers_per_ctrl_vc = p.buffers_per_ctrl_vc;
     m_wormhole = p.wormhole;
     m_bubble = p.bubble;
+    m_balanced_bubble = p.balanced_bubble;
+    m_shared_bubble = p.shared_bubble;
+    m_elastic_token = p.elastic_token;
+    m_critical_bubbles = p.critical_bubbles;
+    m_balanced_vc_first = p.balanced_vc_first;
+    m_balanced_vc_total = p.balanced_vc_total;
     m_escape_vc = p.escape_vc;
     m_lab_topology = p.lab_topology;
     m_routing_algorithm = p.routing_algorithm;
@@ -376,6 +382,198 @@ GarnetNetwork::getNumRouters()
     return m_routers.size();
 }
 
+int
+GarnetNetwork::getCriticalRing(int router_id, PortDirection direction) const
+{
+    if (m_lab_topology == "Ring") {
+        if (direction == "Clockwise")
+            return 0;
+        if (direction == "CounterClockwise")
+            return 1;
+    } else if (m_lab_topology == "Torus2D") {
+        int rows = m_num_rows;
+        int cols = m_routers.size() / rows;
+        if (direction == "East" || direction == "West") {
+            int row = router_id / cols;
+            return row * 2 + (direction == "West");
+        }
+        if (direction == "North" || direction == "South") {
+            int col = router_id % cols;
+            return rows * 2 + col * 2 + (direction == "South");
+        }
+    }
+    return -1;
+}
+
+int
+GarnetNetwork::getRingCapacity(int ring, int vnet) const
+{
+    int ring_size = m_lab_topology == "Ring" ? m_routers.size() :
+        (ring < m_num_rows * 2 ? m_num_cols : m_num_rows);
+    uint32_t depth = m_vnet_type[vnet] == DATA_VNET_ ?
+        m_buffers_per_data_vc : m_buffers_per_ctrl_vc;
+    return ring_size * m_max_vcs_per_vnet * depth;
+}
+
+int
+GarnetNetwork::getCriticalCredits(int router_id, PortDirection direction,
+                                  int vnet) const
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return 0;
+    auto it = m_critical_ring_counts.find({ring, vnet});
+    return it == m_critical_ring_counts.end() ? 0 : it->second;
+}
+
+void
+GarnetNetwork::addCriticalCredit(int router_id, PortDirection direction,
+                                 int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring >= 0)
+        m_critical_ring_counts[{ring, vnet}]++;
+}
+
+void
+GarnetNetwork::consumeCriticalCredit(int router_id, PortDirection direction,
+                                      int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring >= 0)
+        m_critical_ring_counts[{ring, vnet}]--;
+}
+
+bool
+GarnetNetwork::reserveSharedBubble(int router_id, PortDirection direction,
+                                    int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return true;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_shared_ring_free.find(key);
+    if (it == m_shared_ring_free.end())
+        it = m_shared_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    int &reserved = m_shared_ring_reserved[key];
+    if (it->second - reserved <= 1)
+        return false;
+    reserved++;
+    return true;
+}
+
+void
+GarnetNetwork::releaseSharedBubble(int router_id, PortDirection direction,
+                                   int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    m_shared_ring_reserved[key]--;
+}
+
+void
+GarnetNetwork::commitSharedBubble(int router_id, PortDirection direction,
+                                  int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    m_shared_ring_reserved[key]--;
+}
+
+void
+GarnetNetwork::consumeSharedCredit(int router_id, PortDirection direction,
+                                   int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_shared_ring_free.find(key);
+    if (it == m_shared_ring_free.end())
+        it = m_shared_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    it->second--;
+}
+
+void
+GarnetNetwork::returnSharedCredit(int router_id, PortDirection direction,
+                                  int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_shared_ring_free.find(key);
+    if (it == m_shared_ring_free.end())
+        it = m_shared_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    it->second++;
+}
+
+bool
+GarnetNetwork::reserveElasticEntry(int router_id, PortDirection direction,
+                                    int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return true;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_elastic_ring_free.find(key);
+    if (it == m_elastic_ring_free.end())
+        it = m_elastic_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    int &reserved = m_elastic_ring_reserved[key];
+    if (it->second - reserved < 2)
+        return false;
+    reserved++;
+    return true;
+}
+
+void
+GarnetNetwork::releaseElasticEntry(int router_id, PortDirection direction,
+                                   int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring >= 0)
+        m_elastic_ring_reserved[{ring, vnet}]--;
+}
+
+void
+GarnetNetwork::commitElasticEntry(int router_id, PortDirection direction,
+                                   int vnet)
+{
+    releaseElasticEntry(router_id, direction, vnet);
+}
+
+void
+GarnetNetwork::consumeElasticSlot(int router_id, PortDirection direction,
+                                  int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_elastic_ring_free.find(key);
+    if (it == m_elastic_ring_free.end())
+        it = m_elastic_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    it->second--;
+}
+
+void
+GarnetNetwork::releaseElasticSlot(int router_id, PortDirection direction,
+                                  int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring >= 0)
+        m_elastic_ring_free[{ring, vnet}]++;
+}
+
 // Get ID of router connected to a NI.
 int
 GarnetNetwork::get_router_id(int global_ni, int vnet)
@@ -546,6 +744,16 @@ GarnetNetwork::regStats()
 
     m_escape_vc_transitions
         .name(name() + ".escape_vc_transitions")
+        .unit(Count::get());
+
+    m_balanced_bubble_moves
+        .name(name() + ".balanced_bubble_moves")
+        .unit(Count::get());
+    m_balanced_bubble_blocks
+        .name(name() + ".balanced_bubble_blocks")
+        .unit(Count::get());
+    m_balanced_vc_choices
+        .name(name() + ".balanced_vc_choices")
         .unit(Count::get());
 
     // Links

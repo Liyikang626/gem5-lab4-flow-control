@@ -44,9 +44,28 @@ namespace ruby
 namespace garnet
 {
 
+static PortDirection
+travelDirection(PortDirection input)
+{
+    if (input == "Clockwise")
+        return "CounterClockwise";
+    if (input == "CounterClockwise")
+        return "Clockwise";
+    if (input == "East")
+        return "West";
+    if (input == "West")
+        return "East";
+    if (input == "North")
+        return "South";
+    if (input == "South")
+        return "North";
+    return input;
+}
+
 InputUnit::InputUnit(int id, PortDirection direction, Router *router)
   : Consumer(router), m_router(router), m_id(id), m_direction(direction),
-    m_vc_per_vnet(m_router->get_vc_per_vnet())
+    m_vc_per_vnet(m_router->get_vc_per_vnet()),
+    m_elastic(m_router->get_net_ptr()->isElasticTokenEnabled())
 {
     const int m_num_vcs = m_router->get_num_vcs();
     m_num_buffer_reads.resize(m_num_vcs/m_vc_per_vnet);
@@ -60,6 +79,17 @@ InputUnit::InputUnit(int id, PortDirection direction, Router *router)
     virtualChannels.reserve(m_num_vcs);
     for (int i=0; i < m_num_vcs; i++) {
         virtualChannels.emplace_back();
+    }
+
+    if (m_elastic) {
+        for (int vnet = 0; vnet < m_router->get_num_vnets(); vnet++) {
+            int depth = m_router->get_net_ptr()->get_vnet_type(vnet) ==
+                DATA_VNET_ ?
+                m_router->get_net_ptr()->getBuffersPerDataVC() :
+                m_router->get_net_ptr()->getBuffersPerCtrlVC();
+            elasticBuffers.emplace_back(m_vc_per_vnet,
+                                         m_vc_per_vnet * depth);
+        }
     }
 }
 
@@ -121,7 +151,11 @@ InputUnit::wakeup()
 
 
         // Buffer the flit
-        virtualChannels[vc].insertFlit(t_flit);
+        if (m_elastic)
+            elasticBuffers[vc / m_vc_per_vnet].insert(
+                vc % m_vc_per_vnet, t_flit);
+        else
+            virtualChannels[vc].insertFlit(t_flit);
 
         int vnet = vc/m_vc_per_vnet;
         // number of writes same as reads
@@ -155,11 +189,18 @@ InputUnit::wakeup()
 // Send a credit back to upstream router for this VC.
 // Called by SwitchAllocator when the flit in this VC wins the Switch.
 void
-InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
+InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime,
+                            bool critical)
 {
-    DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d to %s\n",
-    m_router->get_id(), in_vc, free_signal, m_credit_link->name());
-    Credit *t_credit = new Credit(in_vc, free_signal, curTime);
+    DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d "
+                         "critical:%d to %s\n",
+            m_router->get_id(), in_vc, free_signal, critical,
+            m_credit_link->name());
+    Credit *t_credit = new Credit(in_vc, free_signal, curTime, critical);
+    if (m_elastic)
+        m_router->get_net_ptr()->releaseElasticSlot(
+            m_router->get_id(), travelDirection(m_direction),
+            in_vc / m_vc_per_vnet);
     creditQueue.insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
 }
@@ -167,6 +208,14 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
 bool
 InputUnit::functionalRead(Packet *pkt, WriteMask &mask)
 {
+    if (m_elastic) {
+        bool read = false;
+        for (auto &buffer : elasticBuffers) {
+            if (buffer.functionalRead(pkt, mask))
+                read = true;
+        }
+        return read;
+    }
     bool read = false;
     for (auto& virtual_channel : virtualChannels) {
         if (virtual_channel.functionalRead(pkt, mask))
@@ -179,6 +228,12 @@ InputUnit::functionalRead(Packet *pkt, WriteMask &mask)
 uint32_t
 InputUnit::functionalWrite(Packet *pkt)
 {
+    if (m_elastic) {
+        uint32_t writes = 0;
+        for (auto &buffer : elasticBuffers)
+            writes += buffer.functionalWrite(pkt);
+        return writes;
+    }
     uint32_t num_functional_writes = 0;
     for (auto& virtual_channel : virtualChannels) {
         num_functional_writes += virtual_channel.functionalWrite(pkt);

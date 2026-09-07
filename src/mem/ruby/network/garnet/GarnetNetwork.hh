@@ -33,6 +33,8 @@
 #define __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
 
 #include <iostream>
+#include <map>
+#include <utility>
 #include <vector>
 
 #include "mem/ruby/network/Network.hh"
@@ -81,6 +83,12 @@ class GarnetNetwork : public Network
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
     bool isWormholeEnabled() const { return m_wormhole; }
     bool isBubbleEnabled() const { return m_bubble; }
+    bool isBalancedBubbleEnabled() const { return m_balanced_bubble; }
+    bool isSharedBubbleEnabled() const { return m_shared_bubble; }
+    bool isElasticTokenEnabled() const { return m_elastic_token; }
+    uint32_t getCriticalBubbles() const { return m_critical_bubbles; }
+    bool useBalancedVcFirst() const { return m_balanced_vc_first; }
+    bool useBalancedVcTotal() const { return m_balanced_vc_total; }
     bool isEscapeVcEnabled() const { return m_escape_vc; }
     const std::string& getLabTopology() const { return m_lab_topology; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
@@ -161,6 +169,35 @@ class GarnetNetwork : public Network
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
     void incrementEscapeVcTransitions() { m_escape_vc_transitions++; }
+    void incrementBalancedBubbleMoves() { m_balanced_bubble_moves++; }
+    void incrementBalancedBubbleBlocks() { m_balanced_bubble_blocks++; }
+    void incrementBalancedVcChoices() { m_balanced_vc_choices++; }
+
+    int getCriticalCredits(int router_id, PortDirection direction,
+                           int vnet) const;
+    void addCriticalCredit(int router_id, PortDirection direction, int vnet);
+    void consumeCriticalCredit(int router_id, PortDirection direction,
+                               int vnet);
+    bool reserveSharedBubble(int router_id, PortDirection direction,
+                             int vnet);
+    void releaseSharedBubble(int router_id, PortDirection direction,
+                             int vnet);
+    void commitSharedBubble(int router_id, PortDirection direction,
+                            int vnet);
+    void consumeSharedCredit(int router_id, PortDirection direction,
+                             int vnet);
+    void returnSharedCredit(int router_id, PortDirection direction,
+                            int vnet);
+    bool reserveElasticEntry(int router_id, PortDirection direction,
+                             int vnet);
+    void releaseElasticEntry(int router_id, PortDirection direction,
+                             int vnet);
+    void commitElasticEntry(int router_id, PortDirection direction,
+                            int vnet);
+    void consumeElasticSlot(int router_id, PortDirection direction,
+                            int vnet);
+    void releaseElasticSlot(int router_id, PortDirection direction,
+                            int vnet);
 
   protected:
     // Configuration
@@ -172,6 +209,12 @@ class GarnetNetwork : public Network
     uint32_t m_buffers_per_data_vc;
     bool m_wormhole;
     bool m_bubble;
+    bool m_balanced_bubble;
+    bool m_shared_bubble;
+    bool m_elastic_token;
+    uint32_t m_critical_bubbles;
+    bool m_balanced_vc_first;
+    bool m_balanced_vc_total;
     bool m_escape_vc;
     std::string m_lab_topology;
     int m_routing_algorithm;
@@ -209,6 +252,9 @@ class GarnetNetwork : public Network
     statistics::Scalar  m_total_hops;
     statistics::Formula m_avg_hops;
     statistics::Scalar m_escape_vc_transitions;
+    statistics::Scalar m_balanced_bubble_moves;
+    statistics::Scalar m_balanced_bubble_blocks;
+    statistics::Scalar m_balanced_vc_choices;
 
     std::vector<std::vector<statistics::Scalar *>> m_data_traffic_distribution;
     std::vector<std::vector<statistics::Scalar *>> m_ctrl_traffic_distribution;
@@ -217,12 +263,20 @@ class GarnetNetwork : public Network
     GarnetNetwork(const GarnetNetwork& obj);
     GarnetNetwork& operator=(const GarnetNetwork& obj);
 
+    int getCriticalRing(int router_id, PortDirection direction) const;
+    int getRingCapacity(int ring, int vnet) const;
+
     std::vector<VNET_type > m_vnet_type;
     std::vector<Router *> m_routers;   // All Routers in Network
     std::vector<NetworkLink *> m_networklinks; // All flit links in the network
     std::vector<NetworkBridge *> m_networkbridges; // All network bridges
     std::vector<CreditLink *> m_creditlinks; // All credit links in the network
     std::vector<NetworkInterface *> m_nis;   // All NI's in Network
+    std::map<std::pair<int, int>, int> m_critical_ring_counts;
+    std::map<std::pair<int, int>, int> m_shared_ring_free;
+    std::map<std::pair<int, int>, int> m_shared_ring_reserved;
+    std::map<std::pair<int, int>, int> m_elastic_ring_free;
+    std::map<std::pair<int, int>, int> m_elastic_ring_reserved;
     int m_next_packet_id; // static vairable for packet id allocation
 };
 
