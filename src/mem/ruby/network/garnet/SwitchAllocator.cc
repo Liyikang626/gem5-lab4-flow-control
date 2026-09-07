@@ -190,6 +190,7 @@ SwitchAllocator::arbitrate_outports()
         int inport = m_round_robin_inport[outport];
         auto output_unit = m_router->getOutputUnit(outport);
 
+        // Keep a pressured long ring moving before admitting new traffic.
         if (m_router->get_net_ptr()->isElasticTokenEnabled() &&
             m_router->get_net_ptr()->getLabTopology() == "Ring" &&
             output_unit->get_direction() != "Local") {
