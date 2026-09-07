@@ -88,6 +88,12 @@ class OutputUnit : public Consumer
         return outVcState[vc].get_critical_count();
     }
 
+    int
+    get_elastic_credits(int vnet)
+    {
+        return m_elastic_credits[vnet];
+    }
+
     inline int
     get_outlink_id()
     {

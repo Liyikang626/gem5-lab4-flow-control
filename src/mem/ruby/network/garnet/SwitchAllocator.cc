@@ -188,13 +188,33 @@ SwitchAllocator::arbitrate_outports()
     // Independent arbiter at each output port
     for (int outport = 0; outport < m_num_outports; outport++) {
         int inport = m_round_robin_inport[outport];
+        auto output_unit = m_router->getOutputUnit(outport);
+
+        if (m_router->get_net_ptr()->isElasticTokenEnabled() &&
+            output_unit->get_direction() != "Local") {
+            int candidate = inport;
+            for (int i = 0; i < m_num_inports; i++) {
+                if (m_port_requests[candidate] == outport) {
+                    int invc = m_vc_winners[candidate];
+                    int vnet = get_vnet(invc);
+                    if (!enters_ring(candidate, outport) &&
+                        output_unit->get_elastic_credits(vnet) <=
+                            m_vc_per_vnet) {
+                        inport = candidate;
+                        break;
+                    }
+                }
+                candidate++;
+                if (candidate == m_num_inports)
+                    candidate = 0;
+            }
+        }
 
         for (int inport_iter = 0; inport_iter < m_num_inports;
                  inport_iter++) {
 
             // inport has a request this cycle for outport
             if (m_port_requests[inport] == outport) {
-                auto output_unit = m_router->getOutputUnit(outport);
                 auto input_unit = m_router->getInputUnit(inport);
 
                 // grant this outport to this inport
