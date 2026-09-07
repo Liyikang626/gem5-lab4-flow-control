@@ -370,7 +370,9 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
                         enters_ring(inport, outport);
     bool elastic_entry = network->isElasticTokenEnabled() &&
                          enters_ring(inport, outport);
-    if (elastic_entry)
+    bool ring_token = elastic_entry &&
+                      network->getLabTopology() == "Ring";
+    if (elastic_entry && !ring_token)
         min_credits = 2;
     bool protect_critical =
         m_router->get_net_ptr()->isBalancedBubbleEnabled() &&
@@ -442,7 +444,7 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
         m_shared_vnets[inport] = vnet;
     }
 
-    if (elastic_entry) {
+    if (ring_token) {
         if (!network->reserveElasticEntry(
                 m_router->get_id(), output_unit->get_direction(), vnet))
             return false;
