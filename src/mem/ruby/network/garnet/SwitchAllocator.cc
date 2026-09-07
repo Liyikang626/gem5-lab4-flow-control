@@ -190,18 +190,26 @@ SwitchAllocator::arbitrate_outports()
         int inport = m_round_robin_inport[outport];
         auto output_unit = m_router->getOutputUnit(outport);
 
-        // Keep a pressured long ring moving before admitting new traffic.
+        // Keep a pressured directional ring moving before admitting new
+        // traffic.  The original Ring rule is unchanged; Torus applies the
+        // same ordering only to the row or column ring under pressure.
         if (m_router->get_net_ptr()->isElasticTokenEnabled() &&
-            m_router->get_net_ptr()->getLabTopology() == "Ring" &&
-            output_unit->get_direction() != "Local") {
+            output_unit->get_direction() != "Local" &&
+            (m_router->get_net_ptr()->getLabTopology() == "Ring" ||
+             m_router->get_net_ptr()->getLabTopology() == "Torus2D")) {
             int candidate = inport;
             for (int i = 0; i < m_num_inports; i++) {
                 if (m_port_requests[candidate] == outport) {
                     int invc = m_vc_winners[candidate];
                     int vnet = get_vnet(invc);
-                    if (!enters_ring(candidate, outport) &&
+                    bool pressured =
+                        m_router->get_net_ptr()->getLabTopology() == "Ring" ?
                         output_unit->get_elastic_credits(vnet) <=
-                            m_vc_per_vnet) {
+                            m_vc_per_vnet :
+                        m_router->get_net_ptr()->isElasticRingPressured(
+                            m_router->get_id(), output_unit->get_direction(),
+                            vnet);
+                    if (pressured && !enters_ring(candidate, outport)) {
                         inport = candidate;
                         break;
                     }

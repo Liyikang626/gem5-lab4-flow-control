@@ -190,6 +190,8 @@ class GarnetNetwork : public Network
                             int vnet);
     bool reserveElasticEntry(int router_id, PortDirection direction,
                              int vnet);
+    bool isElasticRingPressured(int router_id, PortDirection direction,
+                                int vnet);
     void releaseElasticEntry(int router_id, PortDirection direction,
                               int vnet);
     void commitElasticEntry(int router_id, PortDirection direction,
@@ -277,6 +279,7 @@ class GarnetNetwork : public Network
     std::map<std::pair<int, int>, int> m_shared_ring_reserved;
     std::map<std::pair<int, int>, int> m_elastic_ring_free;
     std::map<std::pair<int, int>, int> m_elastic_ring_reserved;
+    std::map<std::pair<int, int>, bool> m_elastic_ring_pressure;
     int m_next_packet_id; // static vairable for packet id allocation
 };
 

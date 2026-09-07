@@ -196,7 +196,9 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime,
                          "critical:%d to %s\n",
             m_router->get_id(), in_vc, free_signal, critical,
             m_credit_link->name());
-    if (m_elastic && m_router->get_net_ptr()->getLabTopology() == "Ring")
+    if (m_elastic &&
+        (m_router->get_net_ptr()->getLabTopology() == "Ring" ||
+         m_router->get_net_ptr()->getLabTopology() == "Torus2D"))
         m_router->get_net_ptr()->releaseElasticSlot(
             m_router->get_id(), travelDirection(m_direction),
             in_vc / m_vc_per_vnet);

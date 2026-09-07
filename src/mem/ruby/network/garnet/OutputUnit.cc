@@ -119,7 +119,8 @@ OutputUnit::decrement_credit(int out_vc)
     if (m_elastic && m_direction != "Local") {
         assert(m_elastic_credits[vnet] > 0);
         m_elastic_credits[vnet]--;
-        if (network->getLabTopology() == "Ring")
+        if (network->getLabTopology() == "Ring" ||
+            network->getLabTopology() == "Torus2D")
             network->consumeElasticSlot(m_router->get_id(), m_direction, vnet);
         return false;
     }

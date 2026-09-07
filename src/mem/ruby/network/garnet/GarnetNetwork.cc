@@ -534,6 +534,31 @@ GarnetNetwork::reserveElasticEntry(int router_id, PortDirection direction,
     return true;
 }
 
+bool
+GarnetNetwork::isElasticRingPressured(int router_id, PortDirection direction,
+                                      int vnet)
+{
+    int ring = getCriticalRing(router_id, direction);
+    if (ring < 0)
+        return false;
+
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_elastic_ring_free.find(key);
+    if (it == m_elastic_ring_free.end())
+        it = m_elastic_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+
+    bool &pressured = m_elastic_ring_pressure[key];
+    int capacity = getRingCapacity(ring, vnet);
+    int close_level = std::max(1, capacity / 8);
+    int open_level = std::max(close_level + 1, capacity / 4);
+    if (!pressured && it->second <= close_level)
+        pressured = true;
+    else if (pressured && it->second >= open_level)
+        pressured = false;
+    return pressured;
+}
+
 void
 GarnetNetwork::releaseElasticEntry(int router_id, PortDirection direction,
                                    int vnet)
