@@ -191,6 +191,7 @@ SwitchAllocator::arbitrate_outports()
         auto output_unit = m_router->getOutputUnit(outport);
 
         if (m_router->get_net_ptr()->isElasticTokenEnabled() &&
+            m_router->get_net_ptr()->getLabTopology() == "Ring" &&
             output_unit->get_direction() != "Local") {
             int candidate = inport;
             for (int i = 0; i < m_num_inports; i++) {
