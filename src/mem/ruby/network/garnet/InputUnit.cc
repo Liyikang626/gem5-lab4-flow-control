@@ -189,12 +189,10 @@ InputUnit::wakeup()
 // Send a credit back to upstream router for this VC.
 // Called by SwitchAllocator when the flit in this VC wins the Switch.
 void
-InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime,
-                            bool critical)
+InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime)
 {
-    DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d "
-                         "critical:%d to %s\n",
-            m_router->get_id(), in_vc, free_signal, critical,
+    DPRINTF(RubyNetwork, "Router[%d]: Sending a credit vc:%d free:%d to %s\n",
+            m_router->get_id(), in_vc, free_signal,
             m_credit_link->name());
     if (m_elastic &&
         (m_router->get_net_ptr()->getLabTopology() == "Ring" ||
@@ -202,7 +200,7 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime,
         m_router->get_net_ptr()->releaseElasticSlot(
             m_router->get_id(), travelDirection(m_direction),
             in_vc / m_vc_per_vnet);
-    Credit *t_credit = new Credit(in_vc, free_signal, curTime, critical);
+    Credit *t_credit = new Credit(in_vc, free_signal, curTime);
     creditQueue.insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
 }

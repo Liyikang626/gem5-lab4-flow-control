@@ -49,18 +49,40 @@ namespace garnet
 OutputUnit::OutputUnit(int id, PortDirection direction, Router *router,
   uint32_t consumerVcs)
   : Consumer(router), m_router(router), m_id(id), m_direction(direction),
-    m_vc_per_vnet(consumerVcs)
+    m_vc_per_vnet(consumerVcs),
+    m_elastic(m_router->get_net_ptr()->isElasticTokenEnabled())
 {
     const int m_num_vcs = consumerVcs * m_router->get_num_vnets();
     outVcState.reserve(m_num_vcs);
     for (int i = 0; i < m_num_vcs; i++) {
         outVcState.emplace_back(i, m_router->get_net_ptr(), consumerVcs);
     }
+
+    m_next_vc.resize(m_router->get_num_vnets(), 0);
+    if (m_elastic) {
+        m_elastic_credits.resize(m_router->get_num_vnets());
+        for (int vnet = 0; vnet < m_router->get_num_vnets(); vnet++) {
+            int depth = m_router->get_net_ptr()->get_vnet_type(vnet) ==
+                DATA_VNET_ ?
+                m_router->get_net_ptr()->getBuffersPerDataVC() :
+                m_router->get_net_ptr()->getBuffersPerCtrlVC();
+            m_elastic_credits[vnet] = consumerVcs * depth;
+        }
+    }
+
 }
 
 void
 OutputUnit::decrement_credit(int out_vc)
 {
+    auto network = m_router->get_net_ptr();
+    int vnet = out_vc / m_vc_per_vnet;
+    if (m_elastic && m_direction != "Local") {
+        assert(m_elastic_credits[vnet] > 0);
+        m_elastic_credits[vnet]--;
+        network->consumeElasticSlot(m_router->get_id(), m_direction, vnet);
+        return;
+    }
     DPRINTF(RubyNetwork, "Router %d OutputUnit %s decrementing credit:%d for "
             "outvc %d at time: %lld for %s\n", m_router->get_id(),
             m_router->getPortDirectionName(get_direction()),
@@ -73,6 +95,11 @@ OutputUnit::decrement_credit(int out_vc)
 void
 OutputUnit::increment_credit(int out_vc)
 {
+    int vnet = out_vc / m_vc_per_vnet;
+    if (m_elastic && m_direction != "Local") {
+        m_elastic_credits[vnet]++;
+        return;
+    }
     DPRINTF(RubyNetwork, "Router %d OutputUnit %s incrementing credit:%d for "
             "outvc %d at time: %lld from:%s\n", m_router->get_id(),
             m_router->getPortDirectionName(get_direction()),
@@ -89,6 +116,9 @@ bool
 OutputUnit::has_credit(int out_vc, int min_credits)
 {
     assert(outVcState[out_vc].isInState(ACTIVE_, curTick()));
+    int vnet = out_vc / m_vc_per_vnet;
+    if (m_elastic && m_direction != "Local")
+        return m_elastic_credits[vnet] >= min_credits;
     return outVcState[out_vc].get_credit_count() >= min_credits;
 }
 
@@ -106,10 +136,19 @@ OutputUnit::has_free_vc(int vnet, int min_credits, int vc_offset)
         vc_end = vc_begin + 1;
     }
     bool wormhole = m_router->get_net_ptr()->isWormholeEnabled();
+    if (m_elastic && m_direction != "Local") {
+        if (m_elastic_credits[vnet] < min_credits)
+            return false;
+        for (int vc = vc_begin; vc < vc_end; vc++) {
+            if (is_vc_idle(vc, curTick()) || wormhole)
+                return true;
+        }
+        return false;
+    }
     for (int vc = vc_begin; vc < vc_end; vc++) {
         bool vc_available = is_vc_idle(vc, curTick()) || wormhole;
-        if (vc_available &&
-            outVcState[vc].get_credit_count() >= min_credits)
+        int credits = outVcState[vc].get_credit_count();
+        if (vc_available && credits >= min_credits)
             return true;
     }
 
@@ -129,6 +168,20 @@ OutputUnit::select_free_vc(int vnet, int min_credits, int vc_offset)
         vc_end = vc_begin + 1;
     }
     bool wormhole = m_router->get_net_ptr()->isWormholeEnabled();
+
+    if (m_elastic && m_direction != "Local") {
+        if (m_elastic_credits[vnet] < min_credits)
+            return -1;
+        for (int vc = vc_begin; vc < vc_end; vc++) {
+            if (is_vc_idle(vc, curTick()) || wormhole) {
+                if (is_vc_idle(vc, curTick()))
+                    outVcState[vc].setState(ACTIVE_, curTick());
+                return vc;
+            }
+        }
+        return -1;
+    }
+
     for (int vc = vc_begin; vc < vc_end; vc++) {
         int credits = outVcState[vc].get_credit_count();
         if (is_vc_idle(vc, curTick()) && credits >= min_credits) {

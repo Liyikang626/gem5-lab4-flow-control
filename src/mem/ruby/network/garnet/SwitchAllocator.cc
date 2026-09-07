@@ -428,25 +428,7 @@ SwitchAllocator::vc_allocate(int outport, int inport, int invc)
     int vnet = get_vnet(invc);
     int min_credits = required_credits(inport, outport);
     int vc_offset = required_vc_offset(inport, invc, outport);
-    bool balance = false;
-    if (balance) {
-        int ring_size = 0;
-        const std::string& topology =
-            m_router->get_net_ptr()->getLabTopology();
-        PortDirection direction = output_unit->get_direction();
-        if (topology == "Ring" &&
-            (direction == "Clockwise" || direction == "CounterClockwise")) {
-            ring_size = m_router->get_net_ptr()->getNumRouters();
-        } else if (topology == "Torus2D") {
-            bool horizontal = direction == "East" || direction == "West";
-            bool vertical = direction == "North" || direction == "South";
-            if (horizontal)
-                ring_size = m_router->get_net_ptr()->getNumCols();
-            else if (vertical)
-                ring_size = m_router->get_net_ptr()->getNumRows();
-        }
-        balance = ring_size >= m_vc_per_vnet;
-    }
+    auto output_unit = m_router->getOutputUnit(outport);
     int outvc = output_unit->select_free_vc(
         vnet, min_credits, vc_offset);
 
