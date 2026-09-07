@@ -60,6 +60,7 @@ OutputUnit::OutputUnit(int id, PortDirection direction, Router *router,
 
     m_next_vc.resize(m_router->get_num_vnets(), 0);
     if (m_elastic) {
+        m_elastic_vc_loads.resize(m_num_vcs, 0);
         m_elastic_credits.resize(m_router->get_num_vnets());
         for (int vnet = 0; vnet < m_router->get_num_vnets(); vnet++) {
             int depth = m_router->get_net_ptr()->get_vnet_type(vnet) ==
@@ -119,6 +120,8 @@ OutputUnit::decrement_credit(int out_vc)
     if (m_elastic && m_direction != "Local") {
         assert(m_elastic_credits[vnet] > 0);
         m_elastic_credits[vnet]--;
+        m_elastic_vc_loads[out_vc]++;
+        network->consumeElasticSlot(m_router->get_id(), m_direction, vnet);
         return false;
     }
     bool critical = network->isBalancedBubbleEnabled() &&
@@ -146,6 +149,9 @@ OutputUnit::increment_credit(int out_vc, bool critical)
     int vnet = out_vc / m_vc_per_vnet;
     if (m_elastic && m_direction != "Local") {
         m_elastic_credits[vnet]++;
+        m_elastic_vc_loads[out_vc]--;
+        m_router->get_net_ptr()->releaseElasticSlot(
+            m_router->get_id(), m_direction, vnet);
         return;
     }
     DPRINTF(RubyNetwork, "Router %d OutputUnit %s incrementing credit:%d for "
@@ -234,14 +240,24 @@ OutputUnit::select_free_vc(int vnet, int min_credits, int vc_offset,
     if (m_elastic && m_direction != "Local") {
         if (m_elastic_credits[vnet] < min_credits)
             return -1;
-        for (int vc = vc_begin; vc < vc_end; vc++) {
-            if (is_vc_idle(vc, curTick()) || wormhole) {
-                if (is_vc_idle(vc, curTick()))
-                    outVcState[vc].setState(ACTIVE_, curTick());
-                return vc;
-            }
+        int count = vc_end - vc_begin;
+        int start = vc_offset >= 0 ? 0 : m_next_vc[vnet];
+        int best_vc = -1;
+        for (int i = 0; i < count; i++) {
+            int offset = vc_offset >= 0 ? vc_offset :
+                         (start + i) % m_vc_per_vnet;
+            int vc = vc_base + offset;
+            if ((is_vc_idle(vc, curTick()) || wormhole) &&
+                (best_vc == -1 ||
+                 m_elastic_vc_loads[vc] < m_elastic_vc_loads[best_vc]))
+                best_vc = vc;
         }
-        return -1;
+        if (best_vc == -1)
+            return -1;
+        if (is_vc_idle(best_vc, curTick()))
+            outVcState[best_vc].setState(ACTIVE_, curTick());
+        m_next_vc[vnet] = (best_vc - vc_base + 1) % m_vc_per_vnet;
+        return best_vc;
     }
 
     if (balance) {

@@ -44,6 +44,24 @@ namespace ruby
 namespace garnet
 {
 
+static PortDirection
+travelDirection(PortDirection input)
+{
+    if (input == "Clockwise")
+        return "CounterClockwise";
+    if (input == "CounterClockwise")
+        return "Clockwise";
+    if (input == "East")
+        return "West";
+    if (input == "West")
+        return "East";
+    if (input == "North")
+        return "South";
+    if (input == "South")
+        return "North";
+    return input;
+}
+
 InputUnit::InputUnit(int id, PortDirection direction, Router *router)
   : Consumer(router), m_router(router), m_id(id), m_direction(direction),
     m_vc_per_vnet(m_router->get_vc_per_vnet()),
@@ -178,6 +196,10 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Tick curTime,
                          "critical:%d to %s\n",
             m_router->get_id(), in_vc, free_signal, critical,
             m_credit_link->name());
+    if (m_elastic)
+        m_router->get_net_ptr()->releaseElasticSlot(
+            m_router->get_id(), travelDirection(m_direction),
+            in_vc / m_vc_per_vnet);
     Credit *t_credit = new Credit(in_vc, free_signal, curTime, critical);
     creditQueue.insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));

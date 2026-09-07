@@ -68,6 +68,8 @@ SwitchAllocator::init()
     m_vc_winners.resize(m_num_inports);
     m_shared_reservations.resize(m_num_inports, false);
     m_shared_vnets.resize(m_num_inports, -1);
+    m_elastic_reservations.resize(m_num_inports, false);
+    m_elastic_vnets.resize(m_num_inports, -1);
 
     for (int i = 0; i < m_num_inports; i++) {
         m_round_robin_invc[i] = 0;
@@ -75,6 +77,8 @@ SwitchAllocator::init()
         m_vc_winners[i] = -1;
         m_shared_reservations[i] = false;
         m_shared_vnets[i] = -1;
+        m_elastic_reservations[i] = false;
+        m_elastic_vnets[i] = -1;
     }
 
     for (int i = 0; i < m_num_outports; i++) {
@@ -202,6 +206,12 @@ SwitchAllocator::arbitrate_outports()
                         m_router->get_id(), output_unit->get_direction(),
                         m_shared_vnets[inport]);
                     m_shared_reservations[inport] = false;
+                }
+                if (m_elastic_reservations[inport]) {
+                    network->commitElasticEntry(
+                        m_router->get_id(), output_unit->get_direction(),
+                        m_elastic_vnets[inport]);
+                    m_elastic_reservations[inport] = false;
                 }
 
                 int outvc = input_unit->get_outvc(invc);
@@ -409,6 +419,14 @@ SwitchAllocator::send_allowed(int inport, int invc, int outport, int outvc)
             return false;
         m_shared_reservations[inport] = true;
         m_shared_vnets[inport] = vnet;
+    }
+
+    if (elastic_entry) {
+        if (!network->reserveElasticEntry(
+                m_router->get_id(), output_unit->get_direction(), vnet))
+            return false;
+        m_elastic_reservations[inport] = true;
+        m_elastic_vnets[inport] = vnet;
     }
 
     return true;
@@ -632,7 +650,17 @@ SwitchAllocator::clear_request_vector()
                     m_shared_vnets[inport]);
             m_shared_reservations[inport] = false;
         }
+        if (m_elastic_reservations[inport]) {
+            int outport = m_port_requests[inport];
+            if (outport >= 0)
+                network->releaseElasticEntry(
+                    m_router->get_id(),
+                    m_router->getOutputUnit(outport)->get_direction(),
+                    m_elastic_vnets[inport]);
+            m_elastic_reservations[inport] = false;
+        }
         m_shared_vnets[inport] = -1;
+        m_elastic_vnets[inport] = -1;
     }
     std::fill(m_port_requests.begin(), m_port_requests.end(), -1);
 }
