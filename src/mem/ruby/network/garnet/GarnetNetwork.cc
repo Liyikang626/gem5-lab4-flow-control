@@ -570,8 +570,14 @@ GarnetNetwork::releaseElasticSlot(int router_id, PortDirection direction,
                                   int vnet)
 {
     int ring = getCriticalRing(router_id, direction);
-    if (ring >= 0)
-        m_elastic_ring_free[{ring, vnet}]++;
+    if (ring < 0)
+        return;
+    auto key = std::make_pair(ring, vnet);
+    auto it = m_elastic_ring_free.find(key);
+    if (it == m_elastic_ring_free.end())
+        it = m_elastic_ring_free.emplace(
+            key, getRingCapacity(ring, vnet)).first;
+    it->second++;
 }
 
 // Get ID of router connected to a NI.
