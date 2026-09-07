@@ -119,7 +119,6 @@ OutputUnit::decrement_credit(int out_vc)
     if (m_elastic && m_direction != "Local") {
         assert(m_elastic_credits[vnet] > 0);
         m_elastic_credits[vnet]--;
-        network->consumeElasticSlot(m_router->get_id(), m_direction, vnet);
         return false;
     }
     bool critical = network->isBalancedBubbleEnabled() &&

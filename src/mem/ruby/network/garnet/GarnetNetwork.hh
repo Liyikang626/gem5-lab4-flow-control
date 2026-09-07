@@ -188,16 +188,6 @@ class GarnetNetwork : public Network
                              int vnet);
     void returnSharedCredit(int router_id, PortDirection direction,
                             int vnet);
-    bool reserveElasticEntry(int router_id, PortDirection direction,
-                             int vnet);
-    void releaseElasticEntry(int router_id, PortDirection direction,
-                             int vnet);
-    void commitElasticEntry(int router_id, PortDirection direction,
-                            int vnet);
-    void consumeElasticSlot(int router_id, PortDirection direction,
-                            int vnet);
-    void releaseElasticSlot(int router_id, PortDirection direction,
-                            int vnet);
 
   protected:
     // Configuration
@@ -275,8 +265,6 @@ class GarnetNetwork : public Network
     std::map<std::pair<int, int>, int> m_critical_ring_counts;
     std::map<std::pair<int, int>, int> m_shared_ring_free;
     std::map<std::pair<int, int>, int> m_shared_ring_reserved;
-    std::map<std::pair<int, int>, int> m_elastic_ring_free;
-    std::map<std::pair<int, int>, int> m_elastic_ring_reserved;
     int m_next_packet_id; // static vairable for packet id allocation
 };
 
