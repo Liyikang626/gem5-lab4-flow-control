@@ -27,6 +27,7 @@
 # Author: Tushar Krishna
 
 import m5
+from _m5 import core
 from m5.objects import *
 from m5.defines import buildEnv
 from m5.util import addToPath
@@ -80,6 +81,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--seed",
+    type=int,
+    default=5489,
+    help="random seed used by the synthetic traffic generator",
+)
+
+parser.add_argument(
     "--sim-cycles", type=int, default=1000, help="Number of simulation cycles"
 )
 
@@ -123,6 +131,8 @@ parser.add_argument(
 Ruby.define_options(parser)
 
 args = parser.parse_args()
+
+core.seedRandom(args.seed)
 
 cpus = [
     GarnetSyntheticTraffic(
