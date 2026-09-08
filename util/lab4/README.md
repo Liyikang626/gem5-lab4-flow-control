@@ -11,6 +11,9 @@ bash util/lab4/run_etfc_experiments.sh /path/to/results/etfc-paper 2
 The first argument is the output directory. Keep it outside the Git checkout.
 The second argument is the number of simulations to run in parallel. The
 script writes raw gem5 statistics and a combined `metrics.csv`.
+The primary experiments use four VCs per vnet with eight entries per VC,
+matching the original Lab 4 baseline. Buffer depth and VC count are varied only
+in their named ablation suites.
 
 Generate the paper diagrams and plots with Python, pandas, NumPy, and
 Matplotlib:

@@ -21,7 +21,7 @@ for topology in Ring Torus2D Mesh2D; do
             for controller in bubble etfc; do
                 label="load_${topology}_${controller}_${cycles}_${rate/./p}"
                 add_case load "$label" "$topology" "$controller" "$rate" \
-                    "$cycles" uniform_random 2 16 4 5489
+                    "$cycles" uniform_random 2 8 4 5489
             done
         done
     done
@@ -32,8 +32,7 @@ for topology in Ring Torus2D Mesh2D; do
     [[ "$topology" == Ring ]] && rate=0.20
     for cycles in 10000 50000 100000; do
         for controller in wormhole escape; do
-            depth=16
-            [[ "$controller" == escape ]] && depth=8
+            depth=8
             label="baseline_${topology}_${controller}_${cycles}"
             add_case baseline "$label" "$topology" "$controller" "$rate" \
                 "$cycles" uniform_random 2 "$depth" 4 5489
@@ -49,7 +48,7 @@ for topology in Ring Torus2D Mesh2D; do
         for controller in bubble etfc; do
             label="traffic_${topology}_${controller}_${traffic}"
             add_case traffic "$label" "$topology" "$controller" "$rate" \
-                50000 "$traffic" 2 16 4 5489
+                50000 "$traffic" 2 8 4 5489
         done
     done
 done
@@ -73,7 +72,7 @@ for topology in Ring Torus2D; do
         for controller in bubble etfc; do
             label="vcs_${topology}_${controller}_${vcs}"
             add_case vcs "$label" "$topology" "$controller" "$rate" \
-                50000 uniform_random 2 16 "$vcs" 5489
+                50000 uniform_random 2 8 "$vcs" 5489
         done
     done
 done
@@ -85,7 +84,7 @@ for topology in Ring Torus2D Mesh2D; do
         for controller in bubble etfc; do
             label="packet_${topology}_${controller}_${inj_vnet}"
             add_case packet "$label" "$topology" "$controller" "$rate" \
-                50000 uniform_random "$inj_vnet" 16 4 5489
+                50000 uniform_random "$inj_vnet" 8 4 5489
         done
     done
 done
@@ -97,7 +96,7 @@ for topology in Ring Torus2D Mesh2D; do
         for controller in bubble etfc; do
             label="seed_${topology}_${controller}_${seed}"
             add_case seed "$label" "$topology" "$controller" "$rate" \
-                50000 uniform_random 2 16 4 "$seed"
+                50000 uniform_random 2 8 4 "$seed"
         done
     done
 done
