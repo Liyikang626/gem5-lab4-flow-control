@@ -106,6 +106,7 @@ run_case() {
     IFS=, read -r suite label topology controller rate cycles traffic \
         inj_vnet depth vcs seed <<< "$1"
     run_dir="$output/raw/$label"
+    temp_dir=$(mktemp -d /tmp/etfc-paper-XXXX)
     row="$output/rows/$label.csv"
     mkdir -p "$run_dir"
 
@@ -118,7 +119,7 @@ run_case() {
     esac
 
     status=ok
-    timeout 600 "$binary" -d "$run_dir" \
+    timeout 600 "$binary" -d "$temp_dir" \
         "$repo/configs/example/garnet_synth_traffic.py" \
         --network=garnet --topology="$topology" --mesh-rows=4 \
         --num-cpus=16 --num-dirs=16 --vcs-per-vnet="$vcs" \
@@ -127,7 +128,7 @@ run_case() {
         --sim-cycles="$cycles" --synthetic="$traffic" --seed="$seed" \
         "${flags[@]}" > "$run_dir/run.log" 2>&1 || status=failed
 
-    stats="$run_dir/stats.txt"
+    stats="$temp_dir/stats.txt"
     injected=NA; received=NA; packet_latency=NA; network_latency=NA
     queue_latency=NA; flit_latency=NA; hops=NA
     if [[ -f "$stats" ]]; then
@@ -145,7 +146,8 @@ run_case() {
         "$traffic" "$inj_vnet" "$depth" "$vcs" "$seed" "$status" \
         "$injected" "$received" "$packet_latency" "$network_latency" \
         "$queue_latency" "$flit_latency" "$hops" > "$row"
-    rm -f "$run_dir/config.ini" "$run_dir/config.json"
+    [[ -f "$stats" ]] && cp "$stats" "$run_dir/stats.txt"
+    rm -rf "$temp_dir"
     echo "$label $status received=$received latency=$packet_latency"
 }
 
