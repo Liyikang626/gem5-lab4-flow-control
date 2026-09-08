@@ -38,6 +38,7 @@
 #include "mem/ruby/common/Consumer.hh"
 #include "mem/ruby/network/garnet/CommonTypes.hh"
 #include "mem/ruby/network/garnet/CreditLink.hh"
+#include "mem/ruby/network/garnet/ElasticBuffer.hh"
 #include "mem/ruby/network/garnet/NetworkLink.hh"
 #include "mem/ruby/network/garnet/Router.hh"
 #include "mem/ruby/network/garnet/VirtualChannel.hh"
@@ -110,24 +111,46 @@ class InputUnit : public Consumer
     inline flit*
     peekTopFlit(int vc)
     {
+        if (m_elastic) {
+            int vnet = vc / m_vc_per_vnet;
+            return elasticBuffers[vnet].peekTopFlit(vc % m_vc_per_vnet);
+        }
         return virtualChannels[vc].peekTopFlit();
     }
 
     inline flit*
     getTopFlit(int vc)
     {
+        if (m_elastic) {
+            int vnet = vc / m_vc_per_vnet;
+            return elasticBuffers[vnet].getTopFlit(vc % m_vc_per_vnet);
+        }
         return virtualChannels[vc].getTopFlit();
     }
 
     inline bool
     need_stage(int vc, flit_stage stage, Tick time)
     {
+        if (m_elastic) {
+            int vnet = vc / m_vc_per_vnet;
+            int offset = vc % m_vc_per_vnet;
+            if (!elasticBuffers[vnet].isReady(offset, time))
+                return false;
+            assert(virtualChannels[vc].get_state() == ACTIVE_);
+            return elasticBuffers[vnet].peekTopFlit(offset)->is_stage(
+                stage, time);
+        }
         return virtualChannels[vc].need_stage(stage, time);
     }
 
     inline bool
     isReady(int invc, Tick curTime)
     {
+        if (m_elastic) {
+            int vnet = invc / m_vc_per_vnet;
+            return elasticBuffers[vnet].isReady(
+                invc % m_vc_per_vnet, curTime);
+        }
         return virtualChannels[invc].isReady(curTime);
     }
 
@@ -166,8 +189,10 @@ class InputUnit : public Consumer
     CreditLink *m_credit_link;
     flitBuffer creditQueue;
 
+    bool m_elastic;
     // Input Virtual channels
     std::vector<VirtualChannel> virtualChannels;
+    std::vector<ElasticBuffer> elasticBuffers;
 
     // Statistical variables
     std::vector<double> m_num_buffer_writes;

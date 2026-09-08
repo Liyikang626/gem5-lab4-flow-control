@@ -33,6 +33,8 @@
 #define __MEM_RUBY_NETWORK_GARNET_0_GARNETNETWORK_HH__
 
 #include <iostream>
+#include <map>
+#include <utility>
 #include <vector>
 
 #include "mem/ruby/network/Network.hh"
@@ -81,6 +83,7 @@ class GarnetNetwork : public Network
     uint32_t getBuffersPerCtrlVC() { return m_buffers_per_ctrl_vc; }
     bool isWormholeEnabled() const { return m_wormhole; }
     bool isBubbleEnabled() const { return m_bubble; }
+    bool isElasticTokenEnabled() const { return m_elastic_token; }
     bool isEscapeVcEnabled() const { return m_escape_vc; }
     const std::string& getLabTopology() const { return m_lab_topology; }
     int getRoutingAlgorithm() const { return m_routing_algorithm; }
@@ -161,6 +164,18 @@ class GarnetNetwork : public Network
     void update_traffic_distribution(RouteInfo route);
     int getNextPacketID() { return m_next_packet_id++; }
     void incrementEscapeVcTransitions() { m_escape_vc_transitions++; }
+    bool reserveElasticEntry(int router_id, PortDirection direction,
+                             int vnet);
+    bool isElasticRingPressured(int router_id, PortDirection direction,
+                                int vnet);
+    void releaseElasticEntry(int router_id, PortDirection direction,
+                              int vnet);
+    void commitElasticEntry(int router_id, PortDirection direction,
+                            int vnet);
+    void consumeElasticSlot(int router_id, PortDirection direction,
+                             int vnet);
+    void releaseElasticSlot(int router_id, PortDirection direction,
+                            int vnet);
 
   protected:
     // Configuration
@@ -172,6 +187,7 @@ class GarnetNetwork : public Network
     uint32_t m_buffers_per_data_vc;
     bool m_wormhole;
     bool m_bubble;
+    bool m_elastic_token;
     bool m_escape_vc;
     std::string m_lab_topology;
     int m_routing_algorithm;
@@ -217,12 +233,18 @@ class GarnetNetwork : public Network
     GarnetNetwork(const GarnetNetwork& obj);
     GarnetNetwork& operator=(const GarnetNetwork& obj);
 
+    int getElasticRing(int router_id, PortDirection direction) const;
+    int getRingCapacity(int ring, int vnet) const;
+
     std::vector<VNET_type > m_vnet_type;
     std::vector<Router *> m_routers;   // All Routers in Network
     std::vector<NetworkLink *> m_networklinks; // All flit links in the network
     std::vector<NetworkBridge *> m_networkbridges; // All network bridges
     std::vector<CreditLink *> m_creditlinks; // All credit links in the network
     std::vector<NetworkInterface *> m_nis;   // All NI's in Network
+    std::map<std::pair<int, int>, int> m_elastic_ring_free;
+    std::map<std::pair<int, int>, int> m_elastic_ring_reserved;
+    std::map<std::pair<int, int>, bool> m_elastic_ring_pressure;
     int m_next_packet_id; // static vairable for packet id allocation
 };
 

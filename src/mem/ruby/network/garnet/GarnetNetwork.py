@@ -47,6 +47,7 @@ class GarnetNetwork(RubyNetwork):
     buffers_per_ctrl_vc = Param.UInt32(1, "buffers per ctrl virtual channel")
     wormhole = Param.Bool(False, "enable shared-buffer wormhole flow control")
     bubble = Param.Bool(False, "enable bubble flow control")
+    elastic_token = Param.Bool(False, "enable elastic token flow control")
     escape_vc = Param.Bool(False, "enable dateline escape VC flow control")
     lab_topology = Param.String("", "topology used by Lab 4 flow control")
     routing_algorithm = Param.Int(0, "0: Weight-based Table, 1: XY, 2: Custom")

@@ -108,6 +108,11 @@ def define_options(parser):
         ),
     )
     parser.add_argument(
+        "--elastic-token",
+        action="store_true",
+        help="enable elastic token flow control",
+    )
+    parser.add_argument(
         "--escape-vc",
         action="store_true",
         help=(
@@ -203,6 +208,18 @@ def init_network(options, network, InterfaceClass):
             if options.topology not in supported:
                 fatal("--bubble requires Ring, Mesh2D, Mesh_XY, or Torus2D")
 
+        if options.elastic_token:
+            supported = ("Ring", "Mesh2D", "Mesh_XY", "Torus2D")
+            if options.topology not in supported:
+                fatal(
+                    "--elastic-token requires Ring, Mesh2D, Mesh_XY, or Torus2D"
+                )
+            if (options.bubble or options.escape_vc or options.wormhole):
+                fatal(
+                    "--elastic-token cannot be combined with "
+                    "Bubble/Escape VC/Wormhole"
+                )
+
         if options.vc_depth is not None and options.vc_depth < 1:
             fatal("--vc-depth must be at least one")
 
@@ -220,13 +237,16 @@ def init_network(options, network, InterfaceClass):
                 fatal("--escape-vc cannot be combined with Bubble/Wormhole")
 
         network.bubble = options.bubble
+        network.elastic_token = options.elastic_token
         network.escape_vc = options.escape_vc
-        network.wormhole = options.wormhole or options.bubble
+        network.wormhole = (
+            options.wormhole or options.bubble or options.elastic_token
+        )
         if options.escape_vc:
             # Each regular/escape VC has eight buffer entries. With two VCs,
             # this matches the 16-entry total buffer budget of Bubble.
             vc_depth = options.vc_depth or 8
-        elif options.wormhole or options.bubble:
+        elif (options.wormhole or options.bubble or options.elastic_token):
             vc_depth = options.vc_depth or 16
         else:
             vc_depth = options.vc_depth

@@ -78,6 +78,8 @@ class OutputUnit : public Consumer
         return outVcState[vc].get_credit_count();
     }
 
+    int get_elastic_credits(int vnet) { return m_elastic_credits[vnet]; }
+
     inline int
     get_outlink_id()
     {
@@ -112,8 +114,11 @@ class OutputUnit : public Consumer
     GEM5_CLASS_VAR_USED int m_id;
     PortDirection m_direction;
     int m_vc_per_vnet;
+    bool m_elastic;
     NetworkLink *m_out_link;
     CreditLink *m_credit_link;
+    std::vector<int> m_next_vc;
+    std::vector<int> m_elastic_credits;
 
     // This is for the network link to consume
     flitBuffer outBuffer;
