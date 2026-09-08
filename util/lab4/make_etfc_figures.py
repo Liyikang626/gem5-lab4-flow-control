@@ -492,6 +492,34 @@ def plot_baselines(data, output):
     save(fig, output, "result_baselines")
 
 
+def plot_latency_breakdown(data, output):
+    load = data[(data.suite == "load") & (data.cycles == 50000)]
+    fig, axes = plt.subplots(1, 3, figsize=(11.4, 3.7))
+    settings = (("Ring", .20, "Ring"), ("Torus2D", .30, "4x4 Torus"),
+                ("Mesh2D", .30, "4x4 Mesh"))
+    for ax, (topology, rate, title) in zip(axes, settings):
+        part = load[(load.topology == topology) &
+                    (load.rate == rate)].set_index("controller")
+        methods = ["bubble", "etfc"]
+        network = [part.loc[m, "network_latency"] for m in methods]
+        queue = [part.loc[m, "queue_latency"] for m in methods]
+        x = np.arange(2)
+        ax.bar(x, network, color="#7DD3FC", label="Network traversal")
+        ax.bar(x, queue, bottom=network, color="#F97316", alpha=.85,
+               label="Source/queue waiting")
+        ax.set_xticks(x, ["Bubble", "ETFC"])
+        ax.set_title(title, weight="bold")
+        ax.set_ylabel("Packet latency (ticks)")
+        ax.grid(True, axis="y", alpha=.22)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, ncol=2, loc="lower center",
+               bbox_to_anchor=(.5, -.01))
+    fig.suptitle("Where ETFC changes latency at 50,000 cycles", fontsize=16,
+                 weight="bold", color=COLORS["ink"])
+    fig.subplots_adjust(wspace=.36, bottom=.19)
+    save(fig, output, "result_latency_breakdown")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("metrics", type=Path)
@@ -521,7 +549,8 @@ def main():
     plot_resources(data, args.output)
     plot_vcs_packets(data, args.output)
     plot_seeds(data, args.output)
-    print(f"Wrote 11 figure pairs to {args.output}")
+    plot_latency_breakdown(data, args.output)
+    print(f"Wrote 12 figure pairs to {args.output}")
 
 
 if __name__ == "__main__":
