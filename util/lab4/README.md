@@ -11,3 +11,13 @@ bash util/lab4/run_etfc_experiments.sh /path/to/results/etfc-paper 2
 The first argument is the output directory. Keep it outside the Git checkout.
 The second argument is the number of simulations to run in parallel. The
 script writes raw gem5 statistics and a combined `metrics.csv`.
+
+Generate the paper diagrams and plots with Python, pandas, NumPy, and
+Matplotlib:
+
+```bash
+python3 util/lab4/make_etfc_figures.py \
+    /path/to/results/etfc-paper/metrics.csv /path/to/report/figures
+```
+
+Every figure is emitted as editable SVG and as a vector PDF for LaTeX.
